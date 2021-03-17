@@ -248,7 +248,6 @@ class PASEBrain(sb.Brain):
         pass
 
     def init_optimizers(self):
-        se
         pass
 
     def compute_forward(self):
