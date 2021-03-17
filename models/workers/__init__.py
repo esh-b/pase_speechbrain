@@ -1,1 +1,1 @@
-from decoder import WaveformWorker
+from .decoder import WaveformWorker

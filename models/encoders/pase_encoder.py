@@ -33,24 +33,23 @@ class PASEEncoder(torch.nn.Module):
                 stride=blocks_strides[0],
             )
         )
-        in_channels = sincnet_channels
+        
         cnn_blocks = len(blocks_channels) - 1
-
         for block_index in range(cnn_blocks):
-            out_channels = cnn_channels[block_index]
+            out_channels = blocks_channels[block_index]
             self.blocks.extend(
                 [
                     Conv1d(
                         in_channels=in_channels,
                         out_channels=out_channels,
-                        kernel_size=cnn_kernel_sizes[block_index],
-                        stride=cnn_strides[block_index],
+                        kernel_size=blocks_kernel_sizes[block_index],
+                        stride=blocks_strides[block_index],
                     ),
                     activation(),
                     BatchNorm1d(input_size=out_channels),
                 ]
             )
-            in_channels = cnn_channels[block_index]
+            in_channels = blocks_channels[block_index]
 
     def forward(self, x, *args, **kwargs):
         for layer in self.blocks:

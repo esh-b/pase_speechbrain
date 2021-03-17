@@ -218,3 +218,41 @@ if __name__ == "__main__":
         min_key="error",
         test_loader_kwargs=hparams["dataloader_options"],
     )
+
+
+class PASEBrain(sb.Brain):
+    def __init__(
+        self,
+        modules=None,
+        opt_classes=None,
+        hparams=None,
+        run_opts=None,
+        checkpointer=None,
+    ):
+        super().__init__(
+            modules=modules,
+            opt_class=None,
+            hparams=hparams,
+            run_opts=run_opts,
+            checkpointer=checkpointer,
+        )
+        self.opt_classes = opt_classes
+
+    def fit_batch(self, batch):
+        h, chunk, preds, labels = self.model.forward(batch, self.alphaSG, device)
+
+    def evaluate_batch(self, batch):
+        pass
+
+    def evaluate(self,):
+        pass
+
+    def init_optimizers(self):
+        se
+        pass
+
+    def compute_forward(self):
+        pass
+
+    def compute_objectives(self):
+        pass

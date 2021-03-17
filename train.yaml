@@ -66,19 +66,22 @@ mean_var_norm: !new:speechbrain.processing.features.InputNormalization
 
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
-    use_sincnet: true,
-    blocks_channels: [64,128,128,256,256,512,512,100]
-    blocks_kernel_sizes: [251,20,11,11,11,11,11,11,1]
-    blocks_strides: [1,10,2,1,2,1,2,2,1]
+    use_sincnet: True
+    blocks_channels: [64, 128, 128, 256, 256, 512, 512, !ref <emb_dim>]
+    blocks_kernel_sizes: [251, 20, 11, 11, 11, 11, 11, 11, 1]
+    blocks_strides: [1, 10, 2, 1, 2, 1, 2, 2, 1]
     in_channels: 1
-    lin_neurons: !ref <emb_dim>
 
 waveform_worker: !new:models.workers.WaveformWorker
     decoder_blocks: 3
-    decoder_channels: [100,100,100]
-    decoder_kernel_sizes: [4,4,10]
-    decoder_strides: [4,4,10]
+    decoder_channels: [512, 256, 128]
+    decoder_kernel_sizes: [30, 30, 30]
+    decoder_strides: [4, 4, 10]
     lin_neurons: 256
+
+workers:
+    regression:
+        decoder: !ref <waveform_worker>
 
 # The first object passed to the Brain class is this "Epoch Counter"
 # which is saved by the Checkpointer so that training can be resumed
@@ -89,12 +92,11 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 # Objects in "modules" dict will have their parameters moved to the correct
 # device, as well as having train()/eval() called on them by the Brain class.
 modules:
-    compute_features: !ref <compute_features>
     env_corrupt: !ref <env_corrupt>
     augmentation: !ref <augmentation>
     mean_var_norm: !ref <mean_var_norm>
     encoder_model: !ref <encoder_model>
-    waveform_worker: !ref <waveform_worker>
+    workers: !ref <workers>
 
 # This optimizer will be constructed by the Brain class after all parameters
 # are moved to the correct device. Then it will be added to the checkpointer.

@@ -13,11 +13,11 @@ class WaveformWorker(torch.nn.Module):
         self,
         device='cpu',
         decoder_blocks=3,
-        decoder_channels=[100,100,100],
-        decoder_kernel_sizes=[4,4,10],
-        decoder_strides=[4,4,10],
+        decoder_channels=[100, 100, 100],
+        decoder_kernel_sizes=[4, 4, 10],
+        decoder_strides=[4, 4, 10],
         lin_neurons=256,
-        in_channels,
+        in_channels=1,
     ):
         super().__init__()
         self.blocks = nn.ModuleList()
@@ -32,14 +32,15 @@ class WaveformWorker(torch.nn.Module):
                         kernel_size=decoder_kernel_sizes[block_index],
                         stride=decoder_strides[block_index],
                     ),
-                    activation(),
                     BatchNorm1d(input_size=out_channels),
                 ]
             )
-            in_channels = cnn_channels[block_index]
+            in_channels = decoder_channels[block_index]
 
         self.blocks.append(
-            Linear(n_neurons=lin_neurons),
+            Linear(
+                input_size=out_channels * 2,
+                n_neurons=lin_neurons),
         )
 
 
