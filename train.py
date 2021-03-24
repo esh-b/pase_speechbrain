@@ -28,6 +28,7 @@ import os
 import sys
 import torch
 import speechbrain as sb
+from speechbrain import Stage
 from hyperpyyaml import load_hyperpyyaml
 from mini_librispeech_prepare import prepare_mini_librispeech
 from utils import flatten_dict
@@ -47,7 +48,7 @@ class PASEBrain(sb.Brain):
         if 'workers' not in modules:
             raise ValueError('Expected atleast one worker')
 
-        for w_type, w_list in modules['workers']:
+        for w_type, w_list in modules['workers'].items():
             for w_name in w_list:
                 self.workers_cfg[w_name] = {'type': w_type}
 
@@ -66,19 +67,19 @@ class PASEBrain(sb.Brain):
         if self.opt_classes is not None:
             self.encoder_optim = self.opt_classes['encoder'](self.modules['encoder'].parameters())
 
-            for w_type, w_list in self.hparams['worker_losses']:
-                for w_name, w_loss in w_list.items():
-                    self.workers_cfg[w_name]['optim'] =  optim_class(self.modules[w_name].parameters())
+            for w_type, w_list in self.opt_classes['workers'].items():
+                for w_name, optim in w_list.items():
+                    self.workers_cfg[w_name]['optim'] =  optim(self.modules[w_name].parameters())
 
             if self.checkpointer is not None:
                 self.checkpointer.add_recoverable('encoder_optim', self.encoder_optim)
-                for name, cfg in self.workers_cfg:
-                    self.checkpointer.add_recoverable(f'{name}_optim', cgf['optim'])
+                for name, cfg in self.workers_cfg.items():
+                    self.checkpointer.add_recoverable(f'{name}_optim', cfg['optim'])
 
     def init_workers_losses(self):
-        for w_type, w_list in self.hparams['worker_losses']:
+        for w_type, w_list in self.hparams.worker_losses.items():
             for w_name, w_loss in w_list.items():
-                self.workers_cfg[w_name]['loss'] = getattr(nn, w_loss)()
+                self.workers_cfg[w_name]['loss'] = getattr(torch.nn, w_loss)()
 
     def on_fit_start(self):
         super().on_fit_start()
@@ -112,11 +113,27 @@ class PASEBrain(sb.Brain):
         return losses.detach().cpu()
 
     def compute_forward(self, batch, stage):
-        h, chunk, preds, labels = self.model.forward(batch, self.alphaSG, device)
-        return preds, labels
+        # h, chunk, preds, labels = self.modules['encoder'].forward(batch, self.alphaSG, device)
+        batch = batch.to(self.device)
+
+        feats, lens = self.prepare_features(batch.sig, stage)
+        embeddings = self.modules['encoder'](feats)
+
+        preds = {}
+        for name in self.workers_cfg:
+            preds[name] = self.modules[name](embeddings)
+        return preds
+
+    def prepare_features(self, wavs, stage):
+        wavs, lens = wavs
+        # if wavs.dim() == 2:
+        #     wavs = wavs.unsqueeze(2)
+
+        return wavs, lens
 
     def compute_objectives(self, predictions, batch, stage):
-        preds, labels = predictions
+        preds = predictions
+        labels = {'decoder': batch.sig[0].unsqueeze(2)}
 
         total_loss = 0
         losses = {}
@@ -178,13 +195,22 @@ def dataio_prep(hparams):
         to the appropriate DynamicItemDataset object.
     """
     @sb.utils.data_pipeline.takes("wav")
-    @sb.utils.data_pipeline.provides("sig", "mfcc")
+    @sb.utils.data_pipeline.provides("sig")
     def audio_pipeline(wav):
           sig = sb.dataio.dataio.read_audio(wav)
-          sig = sig / torch.max(torch.abs(sig))
+          sig = sig[100:16100]
           yield sig
-          prosody = prosody_cal(sig.numpy())
-          yield prosody
+
+    datasets = {}
+    hparams["dataloader_options"]["shuffle"] = False
+    for dataset in ["train", "valid", "test"]:
+        datasets[dataset] = sb.dataio.dataset.DynamicItemDataset.from_json(
+            json_path=hparams[f"{dataset}_annotation"],
+            replacements={"data_root": hparams["data_folder"]},
+            dynamic_items=[audio_pipeline],
+            output_keys=["sig"],
+        )
+    return datasets
 
 
 # Recipe begins!

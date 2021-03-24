@@ -12,14 +12,12 @@ from speechbrain.lobes.models.dual_path import Decoder
 class PASEEncoder(torch.nn.Module):
     def __init__(
         self,
-        device='cpu',
         activation=torch.nn.PReLU,
         use_sincnet=True,
-        blocks_channels=[64,128,128,256,256,512,512,100],
+        in_channels=1,
+        blocks_channels=[64,64,128,128,256,256,512,512,100],
         blocks_kernel_sizes=[251,20,11,11,11,11,11,11,1],
         blocks_strides=[1,10,2,1,2,1,2,2,1],
-        in_channels=1,
-
     ):
         super().__init__()
         self.blocks = nn.ModuleList()
@@ -33,9 +31,9 @@ class PASEEncoder(torch.nn.Module):
                 stride=blocks_strides[0],
             )
         )
+        in_channels = blocks_channels[0]
         
-        cnn_blocks = len(blocks_channels) - 1
-        for block_index in range(cnn_blocks):
+        for block_index in range(1, len(blocks_channels)-1):
             out_channels = blocks_channels[block_index]
             self.blocks.extend(
                 [
@@ -45,11 +43,22 @@ class PASEEncoder(torch.nn.Module):
                         kernel_size=blocks_kernel_sizes[block_index],
                         stride=blocks_strides[block_index],
                     ),
-                    activation(),
                     BatchNorm1d(input_size=out_channels),
+                    activation(),
                 ]
             )
             in_channels = blocks_channels[block_index]
+        self.blocks.extend(
+            [
+                Conv1d(
+                    in_channels=in_channels,
+                    out_channels=blocks_channels[block_index + 1],
+                    kernel_size=blocks_kernel_sizes[block_index + 1],
+                    stride=blocks_strides[block_index + 1],
+                ),
+                BatchNorm1d(input_size=blocks_channels[block_index + 1]),
+            ]
+        )
 
     def forward(self, x, *args, **kwargs):
         for layer in self.blocks:

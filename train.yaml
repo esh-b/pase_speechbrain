@@ -34,7 +34,7 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 # Training Parameters
 sample_rate: 16000
 number_of_epochs: 35
-batch_size: 4
+batch_size: 1
 
 encoder_lr_start: 0.0005
 worker_lr_start: 0.0005
@@ -70,25 +70,34 @@ MFCC: !new:speechbrain.lobes.features.MFCC
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
     use_sincnet: True
-    blocks_channels: [64, 128, 128, 256, 256, 512, 512, !ref <emb_dim>]
+    in_channels: 1
+    blocks_channels: [64, 64, 128, 128, 256, 256, 512, 512, !ref <emb_dim>]
     blocks_kernel_sizes: [251, 20, 11, 11, 11, 11, 11, 11, 1]
     blocks_strides: [1, 10, 2, 1, 2, 1, 2, 2, 1]
-    in_channels: 1
 
 decoder_worker: !new:models.workers.WaveformWorker
+    in_channels: !ref <emb_dim>
     decoder_blocks: 3
     decoder_channels: [512, 256, 128]
     decoder_kernel_sizes: [30, 30, 30]
     decoder_strides: [4, 4, 10]
     lin_neurons: 256
 
+mfcc_worker: !new:models.workers.MFCCWorker
+    input_size: 100
+    lin_blocks: 1
+    lin_neurons: 256
+    out_neurons: 660
+
 worker_models:
     regression:
         decoder: !ref <decoder_worker>
+        # mfcc: !ref <mfcc_worker>
 
 worker_losses:
     regression:
         decoder: L1Loss
+        # mfcc: MSELoss
 
 # The first object passed to the Brain class is this "Epoch Counter"
 # which is saved by the Checkpointer so that training can be resumed
@@ -113,6 +122,8 @@ opt_classes:
         regression:
             decoder: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
+            # mfcc: !name:torch.optim.Adam
+            #     lr: !ref <worker_lr_start>
 
 # lr_annealing: !new:speechbrain.nnet.schedulers.LinearScheduler
 #     initial_value: !ref <lr_start>
