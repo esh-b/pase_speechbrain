@@ -35,13 +35,17 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 sample_rate: 16000
 number_of_epochs: 35
 batch_size: 4
-lr_start: 0.001
-lr_final: 0.0001
 
-emb_dim: 100 # dimensionality of the embeddings
+encoder_lr_start: 0.0005
+worker_lr_start: 0.0005
+decay_factor: 0.5
+halved_epochs: 30
+
+ # dimensionality of the embeddings
+emb_dim: 100
+
 dataloader_options:
     batch_size: !ref <batch_size>
-
 
 # Added noise and reverb come from OpenRIR dataset, automatically
 # downloaded and prepared with this Environmental Corruption class.
@@ -59,10 +63,9 @@ augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
     speeds: [95, 100, 105]
 
-# Mean and std normalization of the input features
-mean_var_norm: !new:speechbrain.processing.features.InputNormalization
-    norm_type: sentence
-    std_norm: False
+MFCC: !new:speechbrain.lobes.features.MFCC
+    n_mfcc: 20
+    n_mels: 40
 
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
@@ -72,16 +75,20 @@ encoder_model: !new:models.encoders.PASEEncoder
     blocks_strides: [1, 10, 2, 1, 2, 1, 2, 2, 1]
     in_channels: 1
 
-waveform_worker: !new:models.workers.WaveformWorker
+decoder_worker: !new:models.workers.WaveformWorker
     decoder_blocks: 3
     decoder_channels: [512, 256, 128]
     decoder_kernel_sizes: [30, 30, 30]
     decoder_strides: [4, 4, 10]
     lin_neurons: 256
 
-workers:
+worker_models:
     regression:
-        decoder: !ref <waveform_worker>
+        decoder: !ref <decoder_worker>
+
+worker_losses:
+    regression:
+        decoder: L1Loss
 
 # The first object passed to the Brain class is this "Epoch Counter"
 # which is saved by the Checkpointer so that training can be resumed
@@ -94,22 +101,32 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 modules:
     env_corrupt: !ref <env_corrupt>
     augmentation: !ref <augmentation>
-    mean_var_norm: !ref <mean_var_norm>
-    encoder_model: !ref <encoder_model>
-    workers: !ref <workers>
+    encoder: !ref <encoder_model>
+    workers: !ref <worker_models>
 
 # This optimizer will be constructed by the Brain class after all parameters
 # are moved to the correct device. Then it will be added to the checkpointer.
-opt_class: !name:torch.optim.Adam
-    lr: !ref <lr_start>
+opt_classes:
+    encoder: !name:torch.optim.Adam
+        lr: !ref <encoder_lr_start>
+    workers:
+        regression:
+            decoder: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
 
-# This function manages learning rate annealing over the epochs.
-# We here use the simple lr annealing method that linearly decreases
-# the lr from the initial value to the final one.
-lr_annealing: !new:speechbrain.nnet.schedulers.LinearScheduler
-    initial_value: !ref <lr_start>
-    final_value: !ref <lr_final>
-    epoch_count: !ref <number_of_epochs>
+# lr_annealing: !new:speechbrain.nnet.schedulers.LinearScheduler
+#     initial_value: !ref <lr_start>
+#     final_value: !ref <lr_final>
+#     epoch_count: !ref <number_of_epochs>
+lr_annealing:
+    encoder: !new:speechbrain.nnet.schedulers.StepScheduler
+        initial_value: !ref <encoder_lr_start>
+        decay_factor: !ref <decay_factor>
+        decay_drop: !ref <halved_epochs> + 1
+    workers: !new:speechbrain.nnet.schedulers.StepScheduler
+        initial_value: !ref <encoder_lr_start>
+        decay_factor: !ref <decay_factor>
+        decay_drop: !ref <halved_epochs> + 1
 
 # This object is used for saving the state of training both so that it
 # can be resumed if it gets interrupted, and also so that the best checkpoint
@@ -117,7 +134,6 @@ lr_annealing: !new:speechbrain.nnet.schedulers.LinearScheduler
 checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
     checkpoints_dir: !ref <save_folder>
     recoverables:
-        encoder_model: !ref <encoder_model>
-        waveform_worker: !ref <waveform_worker>
-        normalizer: !ref <mean_var_norm>
+        encoder: !ref <encoder_model>
+        decoder_worker: !ref <decoder_worker>
         counter: !ref <epoch_counter>

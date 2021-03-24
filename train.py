@@ -30,110 +30,133 @@ import torch
 import speechbrain as sb
 from hyperpyyaml import load_hyperpyyaml
 from mini_librispeech_prepare import prepare_mini_librispeech
+from utils import flatten_dict
 
 
-# Brain class for speech enhancement training
 class PASEBrain(sb.Brain):
+    workers_cfg = {}
+
+    def __init__(
+        self,
+        modules=None,
+        opt_classes=None,
+        hparams=None,
+        run_opts=None,
+        checkpointer=None,
+    ):
+        if 'workers' not in modules:
+            raise ValueError('Expected atleast one worker')
+
+        for w_type, w_list in modules['workers']:
+            for w_name in w_list:
+                self.workers_cfg[w_name] = {'type': w_type}
+
+        modules = flatten_dict(modules)     # Remove hierarchies and set (name, model) in modules
+
+        super().__init__(
+            modules=modules,
+            opt_class=None,
+            hparams=hparams,
+            run_opts=run_opts,
+            checkpointer=checkpointer,
+        )
+        self.opt_classes = opt_classes
+
+    def init_optimizers(self):
+        if self.opt_classes is not None:
+            self.encoder_optim = self.opt_classes['encoder'](self.modules['encoder'].parameters())
+
+            for w_type, w_list in self.hparams['worker_losses']:
+                for w_name, w_loss in w_list.items():
+                    self.workers_cfg[w_name]['optim'] =  optim_class(self.modules[w_name].parameters())
+
+            if self.checkpointer is not None:
+                self.checkpointer.add_recoverable('encoder_optim', self.encoder_optim)
+                for name, cfg in self.workers_cfg:
+                    self.checkpointer.add_recoverable(f'{name}_optim', cgf['optim'])
+
+    def init_workers_losses(self):
+        for w_type, w_list in self.hparams['worker_losses']:
+            for w_name, w_loss in w_list.items():
+                self.workers_cfg[w_name]['loss'] = getattr(nn, w_loss)()
+
+    def on_fit_start(self):
+        super().on_fit_start()
+
+        self.init_workers_losses()
+
+    def fit_batch(self, batch):
+        # Managing automatic mixed precision
+        # if self.auto_mix_prec:
+        #     with torch.cuda.amp.autocast():
+        #         outputs = self.compute_forward(batch, Stage.TRAIN)
+        #         loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
+        #         self.scaler.scale(loss).backward()
+        #         if self.check_gradients(loss):
+        #             self.scaler.step(self.optimizer)
+        #         self.optimizer.zero_grad()
+        #         self.scaler.update()
+
+        outputs = self.compute_forward(batch, Stage.TRAIN)  # outputs = (h, chunk, preds, labels)
+        losses = self.compute_objectives(outputs, batch, Stage.TRAIN)
+
+        losses['total'].backward()
+
+        if self.check_gradients(losses['total']):
+            for w_name, w_cfg in self.workers_cfg.items():
+                w_cfg['optim'].step()
+            self.encoder_optim.step()
+
+        self.encoder_optim.zero_grad()
+
+        return losses.detach().cpu()
+
     def compute_forward(self, batch, stage):
-        """Runs all the computation of that transforms the input into the
-        output probabilities over the N classes.
-
-        Arguments
-        ---------
-        batch : PaddedBatch
-            This batch object contains all the relevant tensors for computation.
-        stage : sb.Stage
-            One of sb.Stage.TRAIN, sb.Stage.VALID, or sb.Stage.TEST.
-
-        Returns
-        -------
-        predictions : Tensor
-            Tensor that contains the posterior probabilities over the N classes.
-        """
-
-        # We first move the batch to the appropriate device.
-        batch = batch.to(self.device)
-
-        
-
-        # Compute features, embeddings, and predictions
-        embeddings = self.modules.encoder_model(feats, lens)
-        predictions = {}
-        # TODO: Call workers here and append predictions
-        return predictions
-
-    def prepare_features(self, wavs, stage):
-        """Prepare the features for computation, including augmentation.
-
-        Arguments
-        ---------
-        wavs : tuple
-            Input signals (tensor) and their relative lengths (tensor).
-        stage : sb.Stage
-            The current stage of training.
-        """
-        wavs, lens = wavs
-
-        # Add augmentation if specified. In this version of augmentation, we
-        # concatenate the original and the augment batches in a single bigger
-        # batch. This is more memory-demanding, but helps to improve the
-        # performance. Change it if you run OOM.
-        if stage == sb.Stage.TRAIN:
-            if hasattr(self.modules, "env_corrupt"):
-                wavs_noise = self.modules.env_corrupt(wavs, lens)
-                wavs = torch.cat([wavs, wavs_noise], dim=0)
-                lens = torch.cat([lens, lens])
-
-            if hasattr(self.hparams, "augmentation"):
-                wavs = self.hparams.augmentation(wavs, lens)
-        return wavs, lens
+        h, chunk, preds, labels = self.model.forward(batch, self.alphaSG, device)
+        return preds, labels
 
     def compute_objectives(self, predictions, batch, stage):
-        """Computes the loss given the predicted and targeted outputs.
+        preds, labels = predictions
 
-        Arguments
-        ---------
-        predictions : tensor
-            The output tensor from `compute_forward`.
-        batch : PaddedBatch
-            This batch object contains all the relevant tensors for computation.
-        stage : sb.Stage
-            One of sb.Stage.TRAIN, sb.Stage.VALID, or sb.Stage.TEST.
+        total_loss = 0
+        losses = {}
 
-        Returns
-        -------
-        loss : torch.Tensor
-            A one-element tensor used for backpropagating the gradient.
-        """
+        # if stage == sb.Stage.TRAIN and hasattr(self.modules, "env_corrupt"):
+        #     spkid = torch.cat([spkid, spkid], dim=0)
+        #     lens = torch.cat([lens, lens])
+
+        self.encoder_optim.zero_grad()
+
+        for name in self.workers_cfg:
+            self.workers_cfg[name]['optim'].zero_grad()
+            loss = self.workers_cfg[name]['loss'](preds[name], labels[name])
+            losses[name] = loss
+            total_loss += loss
+
+        losses["total"] = total_loss
+        return losses
+
+    def evaluate_batch(self, batch):
         pass
 
-    def on_stage_start(self, stage, epoch=None):
-        """Gets called at the beginning of each epoch.
-
-        Arguments
-        ---------
-        stage : sb.Stage
-            One of sb.Stage.TRAIN, sb.Stage.VALID, or sb.Stage.TEST.
-        epoch : int
-            The currently-starting epoch. This is passed
-            `None` during the test stage.
-        """
+    def evaluate(self,):
         pass
+
+    def _update_optimizers_lr(self, epoch):
+        old_lr, new_lr = self.hparams.lr_annealing['encoder'](epoch)
+        sb.nnet.schedulers.update_learning_rate(self.encoder_optim, new_lr)
+
+        old_lr, new_lr = self.hparams.lr_annealing['workers'](epoch)
+        for _, cfg in self.workers_cfg.items():
+            sb.nnet.schedulers.update_learning_rate(cfg['optim'], new_lr)
 
     def on_stage_end(self, stage, stage_loss, epoch=None):
-        """Gets called at the end of an epoch.
+        stage_stats = {"loss": stage_loss}
+        if stage == sb.Stage.TRAIN:
+            self.train_loss = stage_loss
 
-        Arguments
-        ---------
-        stage : sb.Stage
-            One of sb.Stage.TRAIN, sb.Stage.VALID, sb.Stage.TEST
-        stage_loss : float
-            The average loss for all of the data processed in this stage.
-        epoch : int
-            The currently-starting epoch. This is passed
-            `None` during the test stage.
-        """
-        pass
+            if epoch % self.hparams.halved_epochs == 0:
+                self._update_optimizers_lr(epoch)
 
 def dataio_prep(hparams):
     """This function prepares the datasets to be used in the brain class.
@@ -154,7 +177,15 @@ def dataio_prep(hparams):
         Contains two keys, "train" and "valid" that correspond
         to the appropriate DynamicItemDataset object.
     """
-    return {}
+    @sb.utils.data_pipeline.takes("wav")
+    @sb.utils.data_pipeline.provides("sig", "mfcc")
+    def audio_pipeline(wav):
+          sig = sb.dataio.dataio.read_audio(wav)
+          sig = sig / torch.max(torch.abs(sig))
+          yield sig
+          prosody = prosody_cal(sig.numpy())
+          yield prosody
+
 
 # Recipe begins!
 if __name__ == "__main__":
@@ -192,9 +223,9 @@ if __name__ == "__main__":
     datasets = dataio_prep(hparams)
 
     # Initialize the Brain object to prepare for mask training.
-    spk_id_brain = PASEBrain(
+    pase_brain = PASEBrain(
         modules=hparams["modules"],
-        opt_class=hparams["opt_class"],
+        opt_classes=hparams["opt_classes"],
         hparams=hparams,
         run_opts=run_opts,
         checkpointer=hparams["checkpointer"],
@@ -204,8 +235,8 @@ if __name__ == "__main__":
     # necessary to update the parameters of the model. Since all objects
     # with changing state are managed by the Checkpointer, training can be
     # stopped at any point, and will be resumed on next call.
-    spk_id_brain.fit(
-        epoch_counter=spk_id_brain.hparams.epoch_counter,
+    pase_brain.fit(
+        epoch_counter=pase_brain.hparams.epoch_counter,
         train_set=datasets["train"],
         valid_set=datasets["valid"],
         train_loader_kwargs=hparams["dataloader_options"],
@@ -213,45 +244,8 @@ if __name__ == "__main__":
     )
 
     # Load the best checkpoint for evaluation
-    test_stats = spk_id_brain.evaluate(
+    test_stats = pase_brain.evaluate(
         test_set=datasets["test"],
         min_key="error",
         test_loader_kwargs=hparams["dataloader_options"],
     )
-
-
-class PASEBrain(sb.Brain):
-    def __init__(
-        self,
-        modules=None,
-        opt_classes=None,
-        hparams=None,
-        run_opts=None,
-        checkpointer=None,
-    ):
-        super().__init__(
-            modules=modules,
-            opt_class=None,
-            hparams=hparams,
-            run_opts=run_opts,
-            checkpointer=checkpointer,
-        )
-        self.opt_classes = opt_classes
-
-    def fit_batch(self, batch):
-        h, chunk, preds, labels = self.model.forward(batch, self.alphaSG, device)
-
-    def evaluate_batch(self, batch):
-        pass
-
-    def evaluate(self,):
-        pass
-
-    def init_optimizers(self):
-        pass
-
-    def compute_forward(self):
-        pass
-
-    def compute_objectives(self):
-        pass
