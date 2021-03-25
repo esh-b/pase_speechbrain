@@ -6,7 +6,7 @@ from speechbrain.nnet.CNN import Conv1d
 from speechbrain.nnet.linear import Linear
 from speechbrain.nnet.CNN import Conv1d
 from speechbrain.nnet.normalization import BatchNorm1d
-from deconv_layer import ConvTranspose1d
+from deconv import ConvTranspose1d
 
 
 class WaveformWorker(torch.nn.Module):
@@ -25,6 +25,7 @@ class WaveformWorker(torch.nn.Module):
 
         for block_index in range(decoder_blocks):
             out_channels = decoder_channels[block_index]
+            padding = max(0, (decoder_strides[block_index] - decoder_kernel_sizes[block_index]) // -2)
             self.blocks.extend(
                 [
                     ConvTranspose1d(
@@ -32,6 +33,7 @@ class WaveformWorker(torch.nn.Module):
                         out_channels=out_channels,
                         kernel_size=decoder_kernel_sizes[block_index],
                         stride=decoder_strides[block_index],
+                        padding=padding,
                     ),
                     BatchNorm1d(input_size=out_channels),
                     activation(),

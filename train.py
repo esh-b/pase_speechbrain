@@ -101,16 +101,17 @@ class PASEBrain(sb.Brain):
         outputs = self.compute_forward(batch, Stage.TRAIN)  # outputs = (h, chunk, preds, labels)
         losses = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
-        losses['total'].backward()
+        losses['avg'].backward()
 
-        if self.check_gradients(losses['total']):
+        if self.check_gradients(losses['avg']):
             for w_name, w_cfg in self.workers_cfg.items():
                 w_cfg['optim'].step()
             self.encoder_optim.step()
 
         self.encoder_optim.zero_grad()
 
-        return losses.detach().cpu()
+        # return losses.detach().cpu()
+        return losses['avg']
 
     def compute_forward(self, batch, stage):
         # h, chunk, preds, labels = self.modules['encoder'].forward(batch, self.alphaSG, device)
@@ -150,7 +151,7 @@ class PASEBrain(sb.Brain):
             losses[name] = loss
             total_loss += loss
 
-        losses["total"] = total_loss
+        losses["avg"] = total_loss / len(self.workers_cfg)
         return losses
 
     def evaluate_batch(self, batch):
