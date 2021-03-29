@@ -25,7 +25,7 @@ class WaveformWorker(torch.nn.Module):
 
         for block_index in range(decoder_blocks):
             out_channels = decoder_channels[block_index]
-            padding = max(0, (decoder_strides[block_index] - decoder_kernel_sizes[block_index]) // -2)
+            padding = max(0, (decoder_kernel_sizes[block_index] - decoder_strides[block_index]) // 2)
             self.blocks.extend(
                 [
                     ConvTranspose1d(
@@ -36,7 +36,7 @@ class WaveformWorker(torch.nn.Module):
                         padding=padding,
                     ),
                     BatchNorm1d(input_size=out_channels),
-                    activation(),
+                    activation(out_channels, init=0),
                 ]
             )
             in_channels = decoder_channels[block_index]
@@ -47,20 +47,21 @@ class WaveformWorker(torch.nn.Module):
                     in_channels=in_channels,
                     out_channels=lin_neurons,
                     kernel_size=1,
+                    padding='valid',
                 ),
+                nn.PReLU(lin_neurons),
+                Conv1d(in_channels=lin_neurons, out_channels=1, kernel_size=1, padding='valid')
             ],
         )
-        self.act = nn.PReLU(lin_neurons)
-        self.final_layer = Conv1d(in_channels=lin_neurons, out_channels=1, kernel_size=1)
-
 
     def forward(self, x, *args, **kwargs):
         for layer in self.blocks:
             try:
+                if layer._get_name() == 'PReLU':
+                    x = x.transpose(1, -1)
                 x = layer(x, *args, **kwargs)
+                if layer._get_name() == 'PReLU':
+                    x = x.transpose(1, -1)
             except TypeError:
                 x = layer(x)
-        x = self.act(x.transpose(1, -1))
-        x = self.final_layer(x.transpose(1, -1))
-
         return x

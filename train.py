@@ -39,20 +39,15 @@ class PASEBrain(sb.Brain):
 
     def __init__(
         self,
+        encoder_cfg,
+        workers_cfg,
         modules=None,
-        opt_classes=None,
         hparams=None,
         run_opts=None,
         checkpointer=None,
     ):
-        if 'workers' not in modules:
-            raise ValueError('Expected atleast one worker')
-
-        for w_type, w_list in modules['workers'].items():
-            for w_name in w_list:
-                self.workers_cfg[w_name] = {'type': w_type}
-
-        modules = flatten_dict(modules)     # Remove hierarchies and set (name, model) in modules
+        modules = modules or {}
+        modules.update(self._add_modules(encoder_cfg, workers_cfg, checkpointer))
 
         super().__init__(
             modules=modules,
@@ -61,25 +56,47 @@ class PASEBrain(sb.Brain):
             run_opts=run_opts,
             checkpointer=checkpointer,
         )
-        self.opt_classes = opt_classes
+
+    def _add_modules(self, encoder_cfg, workers_cfg, checkpointer):
+        encoder_worker_modules = {}
+
+        for w_type, w_list in workers_cfg.items():
+            for w_name, w_cfg in w_list.items():
+                if 'model' not in w_cfg:
+                    raise ValueError(f'Expected a model definition for worker {w_name}')
+                encoder_worker_modules[f'{w_name}'] = w_cfg['model']
+                if 'labeller' not in w_cfg:
+                    raise ValueError(f'Expected a model definition for worker {w_name}')
+                encoder_worker_modules[f'{w_name}_labeller'] = w_cfg['labeller']
+                self.workers_cfg[w_name] = {'type': w_type}
+                checkpointer.add_recoverable(w_name, w_cfg['model'])
+
+        if not encoder_worker_modules:
+            raise ValueError('Expected atleast one worker')
+
+        if 'model' not in encoder_cfg:
+            raise ValueError('Expected a model definition for the encoder')
+        encoder_worker_modules['encoder'] = encoder_cfg['model']
+        checkpointer.add_recoverable('encoder', encoder_cfg['model'])
+
+        return encoder_worker_modules
 
     def init_optimizers(self):
-        if self.opt_classes is not None:
-            self.encoder_optim = self.opt_classes['encoder'](self.modules['encoder'].parameters())
+        self.encoder_optim = self.hparams.encoder_config['optimizer'](self.modules['encoder'].parameters())
 
-            for w_type, w_list in self.opt_classes['workers'].items():
-                for w_name, optim in w_list.items():
-                    self.workers_cfg[w_name]['optim'] =  optim(self.modules[w_name].parameters())
+        for w_type, w_list in self.hparams.workers_config.items():
+            for w_name, w_cfg in w_list.items():
+                self.workers_cfg[w_name]['optim'] =  w_cfg['optimizer'](self.modules[w_name].parameters())
 
-            if self.checkpointer is not None:
-                self.checkpointer.add_recoverable('encoder_optim', self.encoder_optim)
-                for name, cfg in self.workers_cfg.items():
-                    self.checkpointer.add_recoverable(f'{name}_optim', cfg['optim'])
+        if self.checkpointer is not None:
+            self.checkpointer.add_recoverable('encoder_optim', self.encoder_optim)
+            for name, cfg in self.workers_cfg.items():
+                self.checkpointer.add_recoverable(f'{name}_optim', cfg['optim'])
 
     def init_workers_losses(self):
-        for w_type, w_list in self.hparams.worker_losses.items():
-            for w_name, w_loss in w_list.items():
-                self.workers_cfg[w_name]['loss'] = getattr(torch.nn, w_loss)()
+        for w_type, w_list in self.hparams.workers_config.items():
+            for w_name, w_cfg in w_list.items():
+                self.workers_cfg[w_name]['loss'] = getattr(torch.nn, w_cfg['loss'])()
 
     def on_fit_start(self):
         super().on_fit_start()
@@ -108,17 +125,18 @@ class PASEBrain(sb.Brain):
                 w_cfg['optim'].step()
             self.encoder_optim.step()
 
-        self.encoder_optim.zero_grad()
+        # self.encoder_optim.zero_grad()
 
         # return losses.detach().cpu()
         return losses['avg']
 
     def compute_forward(self, batch, stage):
-        # h, chunk, preds, labels = self.modules['encoder'].forward(batch, self.alphaSG, device)
         batch = batch.to(self.device)
 
         feats, lens = self.prepare_features(batch.sig, stage)
         embeddings = self.modules['encoder'](feats)
+
+        print('......', embeddings.shape)
 
         preds = {}
         for name in self.workers_cfg:
@@ -134,7 +152,14 @@ class PASEBrain(sb.Brain):
 
     def compute_objectives(self, predictions, batch, stage):
         preds = predictions
-        labels = {'decoder': batch.sig[0].unsqueeze(2)}
+        labels = {
+            'decoder': self.modules.decoder_labeller(batch.sig[0]),
+            'mfcc': self.modules.mfcc_labeller(batch.sig[0]),
+        }
+
+        print(preds['decoder'].shape)
+        import pdb
+        pdb.set_trace()
 
         total_loss = 0
         losses = {}
@@ -153,12 +178,6 @@ class PASEBrain(sb.Brain):
 
         losses["avg"] = total_loss / len(self.workers_cfg)
         return losses
-
-    def evaluate_batch(self, batch):
-        pass
-
-    def evaluate(self,):
-        pass
 
     def _update_optimizers_lr(self, epoch):
         old_lr, new_lr = self.hparams.lr_annealing['encoder'](epoch)
@@ -251,8 +270,9 @@ if __name__ == "__main__":
 
     # Initialize the Brain object to prepare for mask training.
     pase_brain = PASEBrain(
+        encoder_cfg=hparams['encoder_config'],
+        workers_cfg=hparams['workers_config'],
         modules=hparams["modules"],
-        opt_classes=hparams["opt_classes"],
         hparams=hparams,
         run_opts=run_opts,
         checkpointer=hparams["checkpointer"],

@@ -63,10 +63,6 @@ augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
     speeds: [95, 100, 105]
 
-MFCC: !new:speechbrain.lobes.features.MFCC
-    n_mfcc: 20
-    n_mels: 40
-
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
     use_sincnet: True
@@ -84,58 +80,57 @@ decoder_worker: !new:models.workers.WaveformWorker
     lin_neurons: 256
 
 mfcc_worker: !new:models.workers.MFCCWorker
-    input_size: 100
-    lin_blocks: 1
-    lin_neurons: 256
-    out_neurons: 660
+    in_channels: 100
+    hidden_blocks: 1
+    hidden_kernel_size: 1
+    hidden_channels: 256
+    out_channels: 20
 
-worker_models:
-    regression:
-        decoder: !ref <decoder_worker>
-        # mfcc: !ref <mfcc_worker>
+decoder_labeller: !new:decoder_labeller.DecoderLabeller
 
-worker_losses:
-    regression:
-        decoder: L1Loss
-        # mfcc: MSELoss
+mfcc_labeller: !new:speechbrain.lobes.features.MFCC
+    deltas: False
+    context: False
+    n_mfcc: 20
+    n_mels: 40
+    n_fft: 2048
 
-# The first object passed to the Brain class is this "Epoch Counter"
-# which is saved by the Checkpointer so that training can be resumed
-# if it gets interrupted at any point.
+# Encoder and worker config
+encoder_config:
+    model: !ref <encoder_model>
+    optimizer: !name:torch.optim.Adam
+        lr: !ref <encoder_lr_start>
+
+workers_config:
+    regressors:
+        decoder:
+            model: !ref <decoder_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: L1Loss
+            labeller: !ref <decoder_labeller>
+        mfcc:
+            model: !ref <mfcc_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: MSELoss
+            labeller: !ref <mfcc_labeller>
+
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
     limit: !ref <number_of_epochs>
 
-# Objects in "modules" dict will have their parameters moved to the correct
-# device, as well as having train()/eval() called on them by the Brain class.
+# The encoder and worker models will be added dynamically to modules from config
 modules:
     env_corrupt: !ref <env_corrupt>
     augmentation: !ref <augmentation>
-    encoder: !ref <encoder_model>
-    workers: !ref <worker_models>
 
-# This optimizer will be constructed by the Brain class after all parameters
-# are moved to the correct device. Then it will be added to the checkpointer.
-opt_classes:
-    encoder: !name:torch.optim.Adam
-        lr: !ref <encoder_lr_start>
-    workers:
-        regression:
-            decoder: !name:torch.optim.Adam
-                lr: !ref <worker_lr_start>
-            # mfcc: !name:torch.optim.Adam
-            #     lr: !ref <worker_lr_start>
-
-# lr_annealing: !new:speechbrain.nnet.schedulers.LinearScheduler
-#     initial_value: !ref <lr_start>
-#     final_value: !ref <lr_final>
-#     epoch_count: !ref <number_of_epochs>
 lr_annealing:
     encoder: !new:speechbrain.nnet.schedulers.StepScheduler
         initial_value: !ref <encoder_lr_start>
         decay_factor: !ref <decay_factor>
         decay_drop: !ref <halved_epochs> + 1
     workers: !new:speechbrain.nnet.schedulers.StepScheduler
-        initial_value: !ref <encoder_lr_start>
+        initial_value: !ref <worker_lr_start>
         decay_factor: !ref <decay_factor>
         decay_drop: !ref <halved_epochs> + 1
 
@@ -147,5 +142,7 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
     recoverables:
         encoder: !ref <encoder_model>
         decoder_worker: !ref <decoder_worker>
-        # mfcc_worker: !ref <mfcc_worker>
+        mfcc_worker: !ref <mfcc_worker>
+        mfcc_labeller: !ref <mfcc_labeller>
         counter: !ref <epoch_counter>
+

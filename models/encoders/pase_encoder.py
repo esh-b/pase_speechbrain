@@ -56,7 +56,7 @@ class PASEEncoder(torch.nn.Module):
                     kernel_size=blocks_kernel_sizes[block_index + 1],
                     stride=blocks_strides[block_index + 1],
                 ),
-                BatchNorm1d(input_size=blocks_channels[block_index + 1]),
+                BatchNorm1d(input_size=blocks_channels[block_index + 1], affine=False),
             ]
         )
 
