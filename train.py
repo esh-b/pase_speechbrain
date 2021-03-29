@@ -136,8 +136,6 @@ class PASEBrain(sb.Brain):
         feats, lens = self.prepare_features(batch.sig, stage)
         embeddings = self.modules['encoder'](feats)
 
-        print('......', embeddings.shape)
-
         preds = {}
         for name in self.workers_cfg:
             preds[name] = self.modules[name](embeddings)
@@ -154,12 +152,8 @@ class PASEBrain(sb.Brain):
         preds = predictions
         labels = {
             'decoder': self.modules.decoder_labeller(batch.sig[0]),
-            'mfcc': self.modules.mfcc_labeller(batch.sig[0]),
+            'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :100, :],
         }
-
-        print(preds['decoder'].shape)
-        import pdb
-        pdb.set_trace()
 
         total_loss = 0
         losses = {}
@@ -177,6 +171,7 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
+        print('.....', losses['avg'])
         return losses
 
     def _update_optimizers_lr(self, epoch):
