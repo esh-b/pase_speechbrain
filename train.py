@@ -130,6 +130,11 @@ class PASEBrain(sb.Brain):
         # return losses.detach().cpu()
         return losses['avg']
 
+    def evaluate_batch(self, batch, stage):
+        out = self.compute_forward(batch, stage=stage)
+        losses = self.compute_objectives(out, batch, stage=stage)
+        return losses['avg']
+
     def compute_forward(self, batch, stage):
         batch = batch.to(self.device)
 
@@ -171,7 +176,7 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
-        print('.....', losses['avg'])
+        print('.....', losses)
         return losses
 
     def _update_optimizers_lr(self, epoch):
