@@ -195,6 +195,9 @@ class PASEBrain(sb.Brain):
             if epoch % self.hparams.halved_epochs == 0:
                 self._update_optimizers_lr(epoch)
 
+            self.checkpointer.save_and_keep_only(meta=stage_stats, min_keys=["loss"])
+
+
 def dataio_prep(hparams):
     """This function prepares the datasets to be used in the brain class.
     It also defines the data processing pipeline through user-defined functions.
