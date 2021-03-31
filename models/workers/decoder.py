@@ -55,6 +55,7 @@ class WaveformWorker(torch.nn.Module):
         )
 
     def forward(self, x, *args, **kwargs):
+        x = x[0]
         for layer in self.blocks:
             try:
                 if layer._get_name() == 'PReLU':

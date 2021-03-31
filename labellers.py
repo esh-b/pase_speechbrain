@@ -16,18 +16,6 @@ from speechbrain.processing.features import (
 
 
 class DecoderLabeller(torch.nn.Module):
-    """Generate labels for the waveform decoder worker.
-
-    Example
-    -------
-    >>> import torch
-    >>> inputs = torch.randn([10, 16000])
-    >>> feature_maker = MFCC()
-    >>> feats = feature_maker(inputs)
-    >>> feats.shape
-    torch.Size([10, 101, 660])
-    """
-
     def forward(self, wav):
         """Returns the label for the waveform autodecoder.
 
@@ -37,3 +25,15 @@ class DecoderLabeller(torch.nn.Module):
             A batch of audio signals to transform to features.
         """
         return wav.unsqueeze(2)
+
+
+class LIMLabeller(torch.nn.Module):
+    def forward(self, pred):
+        bsz, slen = pred.size(0) // 2, pred.size(1)
+
+        return torch.cat((
+            torch.ones(bsz, slen, 1, requires_grad=False),
+            torch.zeros(bsz, slen, 1, requires_grad=False)
+            ),
+            dim=0,
+        )

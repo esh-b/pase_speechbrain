@@ -26,12 +26,17 @@ Authors
 """
 import os
 import sys
+
 import torch
+import numpy as np
 import speechbrain as sb
 from speechbrain import Stage
 from hyperpyyaml import load_hyperpyyaml
+
 from mini_librispeech_prepare import prepare_mini_librispeech
 from utils import flatten_dict
+
+DEFAULT_CHUNK_SIZE = 16000
 
 
 class PASEBrain(sb.Brain):
@@ -138,26 +143,38 @@ class PASEBrain(sb.Brain):
     def compute_forward(self, batch, stage):
         batch = batch.to(self.device)
 
-        feats, lens = self.prepare_features(batch.sig, stage)
+        feats, lens = self.prepare_features(batch, stage)
         embeddings = self.modules['encoder'](feats)
+
+        embeddings = torch.chunk(embeddings, chunks=3, dim=0) # 3 chunks - sig, sig_pos, sig_neg
+        embedding_sig = embeddings[0]
 
         preds = {}
         for name in self.workers_cfg:
             preds[name] = self.modules[name](embeddings)
+
         return preds
 
-    def prepare_features(self, wavs, stage):
-        wavs, lens = wavs
+    def prepare_features(self, batch, stage):
+        wavs, lens = batch.sig
+        wavs_pos, lens_pos = batch.sig_pos
+        wavs_neg, lens_neg = batch.sig_neg
+
         # if wavs.dim() == 2:
         #     wavs = wavs.unsqueeze(2)
 
-        return wavs, lens
+        return (
+            torch.cat([wavs, wavs_pos, wavs_neg], dim=0).to(self.device),
+            torch.cat([lens, lens_pos, lens_neg], dim=0).to(self.device),
+        )
 
     def compute_objectives(self, predictions, batch, stage):
         preds = predictions
+
         labels = {
-            'decoder': self.modules.decoder_labeller(batch.sig[0]),
-            'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :100, :],
+            'decoder': self.modules.decoder_labeller(batch.sig[0]).to(self.device).detach(),
+            'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :100, :].to(self.device).detach(),
+            'lim': self.modules.lim_labeller(preds['lim']).to(self.device).detach(),
         }
 
         total_loss = 0
@@ -176,7 +193,6 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
-        print('.....', losses)
         return losses
 
     def _update_optimizers_lr(self, epoch):
@@ -198,7 +214,7 @@ class PASEBrain(sb.Brain):
             self.checkpointer.save_and_keep_only(meta=stage_stats, min_keys=["loss"])
 
 
-def dataio_prep(hparams):
+def dataio_prep(hparams, data_dir, chunk_size):
     """This function prepares the datasets to be used in the brain class.
     It also defines the data processing pipeline through user-defined functions.
     We expect `prepare_mini_librispeech` to have been called before this,
@@ -217,12 +233,16 @@ def dataio_prep(hparams):
         Contains two keys, "train" and "valid" that correspond
         to the appropriate DynamicItemDataset object.
     """
-    @sb.utils.data_pipeline.takes("wav")
-    @sb.utils.data_pipeline.provides("sig")
-    def audio_pipeline(wav):
-          sig = sb.dataio.dataio.read_audio(wav)
-          sig = sig[100:16100]
-          yield sig
+
+    def select_chunk(wav):
+        """Select a chunk of size `chunk_size` from a given wav file"""
+
+        if len(wav) - chunk_size < 0:   # If wav is less than required chunk size
+            P = chunk_size - len(wav)
+            wav = F.pad(wav.view(1, 1, -1), (0, P), mode='reflect').view(-1)
+
+        start_idx = np.random.randint(0, len(wav) - chunk_size)
+        return wav[start_idx: start_idx + chunk_size]
 
     datasets = {}
     hparams["dataloader_options"]["shuffle"] = False
@@ -230,10 +250,48 @@ def dataio_prep(hparams):
         datasets[dataset] = sb.dataio.dataset.DynamicItemDataset.from_json(
             json_path=hparams[f"{dataset}_annotation"],
             replacements={"data_root": hparams["data_folder"]},
-            dynamic_items=[audio_pipeline],
-            output_keys=["sig"],
         )
+
+    spk_id_encoder = sb.dataio.encoder.CategoricalEncoder()
+    spk_id_encoder.update_from_didataset(datasets['train'], 'spk_id')
+    ind2lab = spk_id_encoder.ind2lab
+
+    @sb.utils.data_pipeline.takes('wav')
+    @sb.utils.data_pipeline.provides('sig','sig_pos')
+    def audio_pipeline(wav):
+        whole_wav = sb.dataio.dataio.read_audio(wav)
+        yield select_chunk(whole_wav) # actual signal
+        yield select_chunk(whole_wav) # positive signal
+
+    @sb.utils.data_pipeline.takes("spk_id")
+    @sb.utils.data_pipeline.provides("spkid_encoded")
+    def spk_id_encoding(spkid):
+      spkid_encoded =  torch.LongTensor([spk_id_encoder.encode_label(spkid)]) 
+      return spkid_encoded
+
+    @sb.utils.data_pipeline.takes("spk_id")
+    @sb.utils.data_pipeline.provides("sig_neg")
+    def rand_chunk(spkid):
+        current_spk_id = spk_id_encoder.encode_label(spkid)
+        rand_spk_id = np.random.choice(tuple(ind2lab.keys() - {current_spk_id}))
+        rand_spk_id_string = ind2lab[rand_spk_id]
+        files = [os.path.join(path, filename)
+                 for path, dirs, files in os.walk(os.path.join(data_dir, rand_spk_id_string))
+                 for filename in files
+                 if filename.endswith(".flac")]
+
+        rand_wav = np.random.choice(files)
+        rand_whole_wav = sb.dataio.dataio.read_audio(rand_wav)
+        yield select_chunk(rand_whole_wav)   # negative signal
+
+    for dataset in ["train", "valid", "test"]:
+        datasets[dataset].add_dynamic_item(audio_pipeline)
+        datasets[dataset].add_dynamic_item(spk_id_encoding) 
+        datasets[dataset].add_dynamic_item(rand_chunk) 
+        datasets[dataset].set_output_keys(['sig', 'sig_pos', 'sig_neg'])
+
     return datasets
+
 
 
 # Recipe begins!
@@ -269,7 +327,10 @@ if __name__ == "__main__":
     )
 
     # Create dataset objects "train", "valid", and "test".
-    datasets = dataio_prep(hparams)
+    datasets = dataio_prep(
+        hparams, 
+        data_dir=os.path.join(hparams['data_folder'], 'LibriSpeech', 'train-clean-5'), 
+        chunk_size=hparams.get('chunk_size', DEFAULT_CHUNK_SIZE))
 
     # Initialize the Brain object to prepare for mask training.
     pase_brain = PASEBrain(

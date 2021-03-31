@@ -8,15 +8,14 @@ from speechbrain.nnet.linear import Linear
 from speechbrain.nnet.normalization import BatchNorm1d
 
 
-class MFCCWorker(torch.nn.Module):
+class LIMWorker(torch.nn.Module):
     def __init__(
         self,
         in_channels,
         hidden_blocks=1,
         hidden_channels=256,
         hidden_kernel_size=1,
-        out_channels=660,
-        activation=torch.nn.PReLU,
+        hidden_activation=torch.nn.PReLU,
     ):
         super().__init__()
 
@@ -28,17 +27,26 @@ class MFCCWorker(torch.nn.Module):
                     Conv1d(
                         in_channels=in_channels, out_channels=hidden_channels, kernel_size=hidden_kernel_size,
                     ),
-                    activation(hidden_channels),
+                    hidden_activation(hidden_channels),
                 ],
             )
             in_channels = hidden_channels
 
-        self.blocks.append(
-            Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=1)
+        self.blocks.extend(
+            [
+                Conv1d(in_channels=in_channels, out_channels=1, kernel_size=1),
+            ],
         )
 
-    def forward(self, x, *args, **kwargs):
-        x = x[0]
+    def make_samples(self, embeddings):
+        embedding_sig, embedding_pos, embedding_neg = embeddings
+        x_pos = torch.cat((embedding_sig, embedding_pos), dim=2)
+        x_neg = torch.cat((embedding_sig, embedding_neg), dim=2)
+        # return torch.cat((x_pos, x_neg), dim=0).to(device)
+        return torch.cat((x_pos, x_neg), dim=0)
+
+    def forward(self, embeddings, *args, **kwargs):
+        x = self.make_samples(embeddings)
         for layer in self.blocks:
             try:
                 if layer._get_name() == 'PReLU':
@@ -48,4 +56,5 @@ class MFCCWorker(torch.nn.Module):
                     x = x.transpose(1, -1)
             except TypeError:
                 x = layer(x)
+
         return x
