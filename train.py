@@ -34,7 +34,6 @@ from speechbrain import Stage
 from hyperpyyaml import load_hyperpyyaml
 
 from mini_librispeech_prepare import prepare_mini_librispeech
-from utils import flatten_dict
 
 DEFAULT_CHUNK_SIZE = 16000
 
@@ -159,6 +158,15 @@ class PASEBrain(sb.Brain):
         wavs, lens = batch.sig
         wavs_pos, lens_pos = batch.sig_pos
         wavs_neg, lens_neg = batch.sig_neg
+
+        if stage == sb.Stage.TRAIN:
+            if hasattr(self.modules, "env_corrupt"):
+                wavs = self.modules.env_corrupt(wavs, lens)
+                wavs_pos = self.modules.env_corrupt(wavs_pos, lens_pos)
+                wavs_neg = self.modules.env_corrupt(wavs, lens_neg)
+
+            # if hasattr(self.hparams, "augmentation"):
+            #     wavs = self.hparams.augmentation(wavs, lens)
 
         # if wavs.dim() == 2:
         #     wavs = wavs.unsqueeze(2)
