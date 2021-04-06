@@ -164,10 +164,10 @@ class PASEBrain(sb.Brain):
                 wavs_pos = self.modules.env_corrupt(wavs_pos, lens_pos)
                 wavs_neg = self.modules.env_corrupt(wavs, lens_neg)
 
-            if hasattr(self.hparams, "augmentation"):
-                wavs = self.hparams.augmentation(wavs, lens)
-                wavs_pos = self.hparams.augmentation(wavs_pos, lens_pos)
-                wavs_neg = self.hparams.augmentation(wavs_neg, lens_neg)
+            # if hasattr(self.hparams, "augmentation"):
+            #     wavs = self.hparams.augmentation(wavs, lens)
+            #     wavs_pos = self.hparams.augmentation(wavs_pos, lens_pos)
+            #     wavs_neg = self.hparams.augmentation(wavs_neg, lens_neg)
 
 
         # if wavs.dim() == 2:
