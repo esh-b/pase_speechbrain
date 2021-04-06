@@ -146,7 +146,6 @@ class PASEBrain(sb.Brain):
         embeddings = self.modules['encoder'](feats)
 
         embeddings = torch.chunk(embeddings, chunks=3, dim=0) # 3 chunks - sig, sig_pos, sig_neg
-        embedding_sig = embeddings[0]
 
         preds = {}
         for name in self.workers_cfg:
@@ -167,8 +166,8 @@ class PASEBrain(sb.Brain):
 
             if hasattr(self.hparams, "augmentation"):
                 wavs = self.hparams.augmentation(wavs, lens)
-                wavs_pos = self.hparams.augmentation(wavs_pos, lens)
-                wavs_neg = self.hparams.augmentation(wavs_neg, lens)
+                wavs_pos = self.hparams.augmentation(wavs_pos, lens_pos)
+                wavs_neg = self.hparams.augmentation(wavs_neg, lens_neg)
 
 
         # if wavs.dim() == 2:
@@ -191,10 +190,6 @@ class PASEBrain(sb.Brain):
         total_loss = 0
         losses = {}
 
-        # if stage == sb.Stage.TRAIN and hasattr(self.modules, "env_corrupt"):
-        #     spkid = torch.cat([spkid, spkid], dim=0)
-        #     lens = torch.cat([lens, lens])
-
         self.encoder_optim.zero_grad()
 
         for name in self.workers_cfg:
@@ -206,7 +201,7 @@ class PASEBrain(sb.Brain):
         losses["avg"] = total_loss / len(self.workers_cfg)
         return losses
 
-    def _update_optimizers_lr(self, epoch):
+    def _update_optimizer_lr(self, epoch):
         old_lr, new_lr = self.hparams.lr_annealing['encoder'](epoch)
         sb.nnet.schedulers.update_learning_rate(self.encoder_optim, new_lr)
 
@@ -219,8 +214,8 @@ class PASEBrain(sb.Brain):
         if stage == sb.Stage.TRAIN:
             self.train_loss = stage_loss
 
-            if epoch % self.hparams.halved_epochs == 0:
-                self._update_optimizers_lr(epoch)
+            if epoch % self.hparams.lr_update_interval == 0:
+                self._update_optimizer_lr(epoch)
 
             self.checkpointer.save_and_keep_only(meta=stage_stats, min_keys=["loss"])
 
