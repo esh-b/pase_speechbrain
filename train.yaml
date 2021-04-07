@@ -40,7 +40,7 @@ batch_size: 1
 encoder_lr_start: 0.0005
 worker_lr_start: 0.0005
 decay_factor: 0.5
-halved_epochs: 30
+lr_update_interval: 30  # epochs
 
  # dimensionality of the embeddings
 emb_dim: 100
@@ -64,7 +64,7 @@ env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
 # # A small speed change help to improve the performance of speaker-id as well.
 augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
-    speeds: [95, 100, 105]
+    speeds: [100]
 
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
@@ -129,7 +129,7 @@ encoder_config:
         lr: !ref <encoder_lr_start>
 
 workers_config:
-    regressors:
+    regressor:
         decoder:
             model: !ref <decoder_worker>
             optimizer: !name:torch.optim.Adam
@@ -142,6 +142,7 @@ workers_config:
                 lr: !ref <worker_lr_start>
             loss: MSELoss
             labeller: !ref <mfcc_labeller>
+    classifier:
         lim:
             model: !ref <lim_worker>
             optimizer: !name:torch.optim.Adam
@@ -174,11 +175,11 @@ lr_annealing:
     encoder: !new:speechbrain.nnet.schedulers.StepScheduler
         initial_value: !ref <encoder_lr_start>
         decay_factor: !ref <decay_factor>
-        decay_drop: !ref <halved_epochs> + 1
+        decay_drop: !ref <lr_update_interval> + 1
     workers: !new:speechbrain.nnet.schedulers.StepScheduler
         initial_value: !ref <worker_lr_start>
         decay_factor: !ref <decay_factor>
-        decay_drop: !ref <halved_epochs> + 1
+        decay_drop: !ref <lr_update_interval> + 1
 
 # This object is used for saving the state of training both so that it
 # can be resumed if it gets interrupted, and also so that the best checkpoint
