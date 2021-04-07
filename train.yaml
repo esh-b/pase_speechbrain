@@ -95,6 +95,18 @@ lim_worker: !new:models.workers.LIMWorker
     hidden_kernel_size: 1
     hidden_channels: 256
 
+gim_worker: !new:models.workers.GIMWorker
+    in_channels: !ref <emb_dim> * 2
+    hidden_blocks: 1
+    hidden_kernel_size: 1
+    hidden_channels: 256
+
+spc_worker: !new:models.workers.SPCWorker
+    in_channels: !ref <emb_dim>
+    hidden_blocks: 1
+    hidden_kernel_size: 1
+    hidden_channels: 256
+
 decoder_labeller: !new:labellers.DecoderLabeller
 
 mfcc_labeller: !new:speechbrain.lobes.features.MFCC
@@ -105,6 +117,10 @@ mfcc_labeller: !new:speechbrain.lobes.features.MFCC
     n_fft: 2048
 
 lim_labeller: !new:labellers.LIMLabeller
+
+gim_labeller: !new:labellers.GIMLabeller
+
+spc_labeller: !new_labllers.SPCLabeller
 
 # Encoder and worker config
 encoder_config:
@@ -134,6 +150,19 @@ workers_config:
             loss: BCEWithLogitsLoss
             labeller: !ref <lim_labeller>
 
+        gim:
+            model: !ref <gim_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: BCEWithLogitsLoss
+            labeller: !ref <gim_labeller>
+        spc:
+            model: !ref <spc_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: BCEWithLogitsLoss
+            labeller: !ref <spc_labeller>
+
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
     limit: !ref <number_of_epochs>
 
@@ -162,5 +191,6 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
         decoder_worker: !ref <decoder_worker>
         mfcc_worker: !ref <mfcc_worker>
         lim_worker: !ref <lim_worker>
+        gim_worker: !ref <gim_worker>
+        spc_worker: !ref <spc_worker>
         counter: !ref <epoch_counter>
-

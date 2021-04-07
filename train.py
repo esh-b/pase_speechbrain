@@ -185,6 +185,8 @@ class PASEBrain(sb.Brain):
             'decoder': self.modules.decoder_labeller(batch.sig[0]).to(self.device).detach(),
             'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :100, :].to(self.device).detach(),
             'lim': self.modules.lim_labeller(preds['lim']).to(self.device).detach(),
+            'gim':self.modules.gim_labeller(preds['gim']).to(self.device).detach(),
+            'spc':self.modules.spc_labeller(preds['spc']).to(self.device).detach(),
         }
 
         total_loss = 0
@@ -272,7 +274,7 @@ def dataio_prep(hparams, data_dir, chunk_size):
     @sb.utils.data_pipeline.takes("spk_id")
     @sb.utils.data_pipeline.provides("spkid_encoded")
     def spk_id_encoding(spkid):
-      spkid_encoded =  torch.LongTensor([spk_id_encoder.encode_label(spkid)]) 
+      spkid_encoded =  torch.LongTensor([spk_id_encoder.encode_label(spkid)])
       return spkid_encoded
 
     @sb.utils.data_pipeline.takes("spk_id")
@@ -292,8 +294,8 @@ def dataio_prep(hparams, data_dir, chunk_size):
 
     for dataset in ["train", "valid", "test"]:
         datasets[dataset].add_dynamic_item(audio_pipeline)
-        datasets[dataset].add_dynamic_item(spk_id_encoding) 
-        datasets[dataset].add_dynamic_item(rand_chunk) 
+        datasets[dataset].add_dynamic_item(spk_id_encoding)
+        datasets[dataset].add_dynamic_item(rand_chunk)
         datasets[dataset].set_output_keys(['sig', 'sig_pos', 'sig_neg'])
 
     return datasets
@@ -334,8 +336,8 @@ if __name__ == "__main__":
 
     # Create dataset objects "train", "valid", and "test".
     datasets = dataio_prep(
-        hparams, 
-        data_dir=os.path.join(hparams['data_folder'], 'LibriSpeech', 'train-clean-5'), 
+        hparams,
+        data_dir=os.path.join(hparams['data_folder'], 'LibriSpeech', 'train-clean-5'),
         chunk_size=hparams.get('chunk_size', DEFAULT_CHUNK_SIZE))
 
     # Initialize the Brain object to prepare for mask training.
@@ -359,7 +361,6 @@ if __name__ == "__main__":
         train_loader_kwargs=hparams["dataloader_options"],
         valid_loader_kwargs=hparams["dataloader_options"],
     )
-
     # Load the best checkpoint for evaluation
     test_stats = pase_brain.evaluate(
         test_set=datasets["test"],

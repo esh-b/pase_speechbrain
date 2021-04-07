@@ -37,3 +37,25 @@ class LIMLabeller(torch.nn.Module):
             ),
             dim=0,
         )
+
+class GIMLabeller(torch.nn.Module):
+    def forward(self, pred):
+        bsz, slen = pred.size(0) // 2, pred.size(1)
+
+        return torch.cat((
+            torch.ones(bsz, slen, 1, requires_grad=False),
+            torch.zeros(bsz, slen, 1, requires_grad=False)
+            ),
+            dim=0,
+        )
+
+class SPCLabeller(torch.nn.Module):
+    def forward(self, pred):
+        bsz, slen = pred.size(0) // 2, pred.size(1)
+
+        return torch.cat((
+            torch.ones(bsz, slen, 1, requires_grad=False),
+            torch.zeros(bsz, slen, 1, requires_grad=False)
+            ),
+            dim=0,
+        )
