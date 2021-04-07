@@ -1,0 +1,96 @@
+# Seed needs to be set at top of yaml, before objects with parameters are made
+seed: 1986
+__set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
+
+# If you plan to train a system on an HPC cluster with a big dataset,
+# we strongly suggest doing the following:
+# 1- Compress the dataset in a single tar or zip file.
+# 2- Copy your dataset locally (i.e., the local disk of the computing node).
+# 3- Uncompress the dataset in the local folder.
+# 4- Set data_folder with the local path.
+# Reading data from the local disk of the compute node (e.g. $SLURM_TMPDIR with SLURM-based clusters) is very important.
+# It allows you to read the data much faster without slowing down the shared filesystem.
+data_folder: ./t_data
+output_folder: !ref ./t_results/<seed>
+save_folder: !ref <output_folder>/save
+train_log: !ref <output_folder>/train_log.txt
+
+# Path where data manifest files will be stored
+# The data manifest files are created by the data preparation script.
+train_annotation: !ref <data_folder>/train.json
+valid_annotation: !ref <data_folder>/valid.json
+test_annotation: !ref <data_folder>/test.json
+
+# The train logger writes training statistics to a file, as well as stdout.
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+    save_file: !ref <train_log>
+
+error_stats: !name:speechbrain.utils.metric_stats.MetricStats
+    metric: !name:speechbrain.nnet.losses.classification_error
+        reduction: batch
+
+ckpt_interval_minutes: 15 # save checkpoint every N min
+
+# Training Parameters
+sample_rate: 16000
+chunk_size: 16000   # number of samples in one training point
+number_of_epochs: 35
+batch_size: 1
+
+encoder_lr_start: 0.0005
+new_layers_lr_start: 0.0005
+decay_factor: 0.5
+lr_update_interval: 30  # epochs
+
+ # dimensionality of the embeddings
+emb_dim: 100
+
+dataloader_options:
+    batch_size: !ref <batch_size>
+
+# Adds speech change + time and frequency dropouts (time-domain implementation)
+# # A small speed change help to improve the performance of speaker-id as well.
+augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
+    sample_rate: !ref <sample_rate>
+    speeds: [100]
+
+# Models definition
+encoder_model: !new:models.encoders.PASEEncoder
+    use_sincnet: True
+    in_channels: 1
+    blocks_channels: [64, 64, 128, 128, 256, 256, 512, 512, !ref <emb_dim>]
+    blocks_kernel_sizes: [251, 21, 11, 11, 11, 11, 11, 11, 1]
+    blocks_strides: [1, 10, 2, 1, 2, 1, 2, 2, 1]
+
+# Encoder and worker config
+encoder_config:
+    model: !ref <encoder_model>
+    optimizer: !name:torch.optim.Adam
+        lr: !ref <encoder_lr_start>
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+    limit: !ref <number_of_epochs>
+
+# The encoder and worker models will be added dynamically to modules from config
+modules:
+    env_corrupt: !ref <env_corrupt>
+    augmentation: !ref <augmentation>
+
+lr_annealing:
+    encoder: !new:speechbrain.nnet.schedulers.StepScheduler
+        initial_value: !ref <encoder_lr_start>
+        decay_factor: !ref <decay_factor>
+        decay_drop: !ref <lr_update_interval> + 1
+
+# This object is used for saving the state of training both so that it
+# can be resumed if it gets interrupted, and also so that the best checkpoint
+# can be later loaded for evaluation or inference.
+      
+pretrainer: !new:speechbrain.utils.parameter_transfer.Pretrainer
+   collect_in: pase_speechbrain/results/1986/save/CKPT+2021-04-06+15-33-43+00
+   loadables:
+      encoder_model: !ref <encoder_model>
+
+   paths:
+      encoder_model: pase_speechbrain/results/1986/save/CKPT+2021-04-06+15-33-43+00/lm.ckpt
+
