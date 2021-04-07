@@ -129,10 +129,14 @@ class PASEBrain(sb.Brain):
                 w_cfg['optim'].step()
             self.encoder_optim.step()
 
-        with open(os.path.join(self.data_folder, 'losses.csv'), 'a+') as f:
-            f.write(','.join([y.item() for _, y in losses.items()]))
+        # Temporary file to store losses of every iteration for plots
+        losses_filepath = os.path.join(self.hparams.save_folder, 'losses.csv')
+        if not os.path.isfile(losses_filepath):
+            with open(losses_filepath, 'w') as f:
+                f.write(','.join(list(self.workers_cfg.keys()) + ['average']) + '\n')
 
-        # self.encoder_optim.zero_grad()
+        with open(losses_filepath, 'a+') as f:
+            f.write(','.join([str(y.item()) for _, y in losses.items()]) + '\n')
 
         # return losses.detach().cpu()
         return losses['avg']
