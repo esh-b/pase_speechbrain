@@ -1,4 +1,5 @@
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -38,23 +39,23 @@ class SPCWorker(torch.nn.Module):
             ],
         )
 
-    def select_chunk_SPC(self,input_tensor):
+    def select_chunk_SPC(self, input_tensor):
     # select samples for SPC
     # input_tensor: (batch, number_of_frames, embedding_size)
       framnum = input_tensor.shape[1]
 
-      idx_ls1 = np.arange(30,framnum-30)
+      idx_ls1 = np.arange(30, framnum - 30)
 
       anchor_idx = np.random.choice(idx_ls1)
 
-      idx_lsp = np.arange(anchor_idx+15,np.minimum(framnum-5,anchor_idx + 50))
-      idx_lsn = np.arange(np.maximum(5,anchor_idx-50),anchor_idx-15)
+      idx_lsp = np.arange(anchor_idx + 15, np.minimum(framnum - 5, anchor_idx + 50))
+      idx_lsn = np.arange(np.maximum(5, anchor_idx-50), anchor_idx - 15)
 
       xp_id = np.random.choice(idx_lsp)
       xn_id = np.random.choice(idx_lsn)
 
-      xp_ids =[xp_id - i for i in range(4,-1,-1)]
-      xn_ids = [xn_id - i for i in range(4,-1,-1)]
+      xp_ids =[xp_id - i for i in range(4, -1, -1)]
+      xn_ids = [xn_id - i for i in range(4, -1, -1)]
 
       x_anchor = input_tensor[:,[anchor_idx],:]
       x_pos = input_tensor[:,xp_ids,:]
