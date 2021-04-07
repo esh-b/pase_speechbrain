@@ -190,4 +190,6 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
         decoder_worker: !ref <decoder_worker>
         mfcc_worker: !ref <mfcc_worker>
         lim_worker: !ref <lim_worker>
+        gim_worker: !ref <gim_worker>
+        spc_worker: !ref <spc_worker>
         counter: !ref <epoch_counter>
