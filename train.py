@@ -129,6 +129,9 @@ class PASEBrain(sb.Brain):
                 w_cfg['optim'].step()
             self.encoder_optim.step()
 
+        with open(os.path.join(self.data_folder, 'losses.csv'), 'a+') as f:
+            f.write(','.join([y.item() for _, y in losses.items()]))
+
         # self.encoder_optim.zero_grad()
 
         # return losses.detach().cpu()
