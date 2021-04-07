@@ -134,7 +134,6 @@ class PASEBrain(sb.Brain):
         if not os.path.isfile(losses_filepath):
             with open(losses_filepath, 'w') as f:
                 f.write(','.join(list(self.workers_cfg.keys()) + ['average']) + '\n')
-
         with open(losses_filepath, 'a+') as f:
             f.write(','.join([str(y.item()) for _, y in losses.items()]) + '\n')
 
