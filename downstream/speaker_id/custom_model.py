@@ -112,6 +112,6 @@ class Classifier(torch.nn.Module):
         for layer in self.blocks:
             try:
                 x = layer(x, *args, **kwargs)
-                print('....', x.shape)
             except TypeError:
+                x = layer(x)
         return x

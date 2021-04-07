@@ -118,11 +118,8 @@ class SpkIdBrain(sb.Brain):
             spkid = torch.cat([spkid, spkid], dim=0)
             lens = torch.cat([lens, lens])
 
-        import pdb
-        pdb.set_trace()
-
         # Compute the cost function
-        loss = torch.nn.NLLLoss()(predictions, spkid)
+        loss = sb.nnet.losses.nll_loss(predictions, spkid.squeeze())
 
         # Append this batch of losses to the loss metric for easy
         self.loss_metric.append(
