@@ -64,7 +64,7 @@ env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
 # # A small speed change help to improve the performance of speaker-id as well.
 augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
-    speeds: [100]
+    speeds: [95, 100, 105]
 
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
@@ -120,7 +120,7 @@ lim_labeller: !new:labellers.LIMLabeller
 
 gim_labeller: !new:labellers.GIMLabeller
 
-spc_labeller: !new_labllers.SPCLabeller
+spc_labeller: !new:labellers.SPCLabeller
 
 # Encoder and worker config
 encoder_config:
