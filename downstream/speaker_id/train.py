@@ -118,17 +118,18 @@ class SpkIdBrain(sb.Brain):
             spkid = torch.cat([spkid, spkid], dim=0)
             lens = torch.cat([lens, lens])
 
+        spkid = spkid.squeeze()
         # Compute the cost function
-        loss = sb.nnet.losses.nll_loss(predictions, spkid.squeeze())
+        loss = sb.nnet.losses.nll_loss(predictions, spkid)
 
         # Append this batch of losses to the loss metric for easy
         self.loss_metric.append(
-            batch.id, predictions, spkid, lens, reduction="batch"
+            batch.id, predictions, spkid, reduction="batch"
         )
 
         # Compute classification error at test time
         if stage != sb.Stage.TRAIN:
-            self.error_metrics.append(batch.id, predictions, spkid, lens)
+            self.error_metrics.append(batch.id, predictions, spkid)
 
         return loss
 
