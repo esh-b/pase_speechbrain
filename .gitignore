@@ -6,7 +6,6 @@ venv/
 
 data/
 results/
-ckpts/
 train.json
 valid.json
 test.json
