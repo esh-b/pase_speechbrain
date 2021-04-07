@@ -220,7 +220,7 @@ class PASEBrain(sb.Brain):
             if epoch % self.hparams.lr_update_interval == 0:
                 self._update_optimizer_lr(epoch)
 
-            self.checkpointer.save_and_keep_only(meta=stage_stats, min_keys=["loss"])
+            self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
 
 
 def dataio_prep(hparams, data_dir, chunk_size):
