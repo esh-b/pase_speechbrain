@@ -32,6 +32,7 @@ import numpy as np
 import speechbrain as sb
 from speechbrain import Stage
 from hyperpyyaml import load_hyperpyyaml
+import torch.nn.functional as F
 
 from mini_librispeech_prepare import prepare_mini_librispeech
 
@@ -129,7 +130,14 @@ class PASEBrain(sb.Brain):
                 w_cfg['optim'].step()
             self.encoder_optim.step()
 
-        # self.encoder_optim.zero_grad()
+        # Temporary file to store losses of every iteration for plots
+        losses_filepath = os.path.join(self.hparams.save_folder, 'losses.csv')
+        if not os.path.isfile(losses_filepath):
+            with open(losses_filepath, 'w') as f:
+                f.write(','.join(list(self.workers_cfg.keys()) + ['average']) + '\n')
+
+        with open(losses_filepath, 'a+') as f:
+            f.write(','.join([str(y.item()) for _, y in losses.items()]) + '\n')
 
         # return losses.detach().cpu()
         return losses['avg']
@@ -150,7 +158,8 @@ class PASEBrain(sb.Brain):
         preds = {}
         for name in self.workers_cfg:
             preds[name] = self.modules[name](embeddings)
-
+            if name == 'lim':
+                print(preds[name].shape)
         return preds
 
     def prepare_features(self, batch, stage):
@@ -162,7 +171,7 @@ class PASEBrain(sb.Brain):
             if hasattr(self.modules, "env_corrupt"):
                 wavs = self.modules.env_corrupt(wavs, lens)
                 wavs_pos = self.modules.env_corrupt(wavs_pos, lens_pos)
-                wavs_neg = self.modules.env_corrupt(wavs, lens_neg)
+                wavs_neg =  self.modules.env_corrupt(wavs, lens_neg)
 
             # if hasattr(self.hparams, "augmentation"):
             #     wavs = self.hparams.augmentation(wavs, lens)
@@ -201,6 +210,7 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
+        #print([(x, y.item()) for x, y in losses.items()])
         return losses
 
     def _update_optimizer_lr(self, epoch):
@@ -219,7 +229,7 @@ class PASEBrain(sb.Brain):
             if epoch % self.hparams.lr_update_interval == 0:
                 self._update_optimizer_lr(epoch)
 
-            self.checkpointer.save_and_keep_only(meta=stage_stats, min_keys=["loss"])
+            self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
 
 
 def dataio_prep(hparams, data_dir, chunk_size):

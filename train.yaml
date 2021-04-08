@@ -34,8 +34,8 @@ ckpt_interval_minutes: 15 # save checkpoint every N min
 # Training Parameters
 sample_rate: 16000
 chunk_size: 16000   # number of samples in one training point
-number_of_epochs: 35
-batch_size: 1
+number_of_epochs: 1
+batch_size: 16
 
 encoder_lr_start: 0.0005
 worker_lr_start: 0.0005
