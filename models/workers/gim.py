@@ -42,8 +42,8 @@ class GIMWorker(torch.nn.Module):
         x_pos_lim = torch.cat((embedding_sig, embedding_pos), dim=2)
         x_neg_lim = torch.cat((embedding_sig, embedding_neg), dim=2)
 
-        x_pos_gim = torch.mean(x_pos_lim, dim=1)    # (batch, 1, 200)
-        x_neg_gim = torch.mean(x_neg_lim, dim=1)    # (batch, 1, 200)
+        x_pos_gim = torch.mean(x_pos_lim, dim=1).unsqueeze(1)    # (batch, 1, 200)
+        x_neg_gim = torch.mean(x_neg_lim, dim=1).unsqueeze(1)    # (batch, 1, 200)
 
         return torch.cat((x_pos_gim, x_neg_gim), dim=0)     # (2*batch, 1, 200)
 

@@ -6,3 +6,7 @@ venv/
 
 data/
 results/
+train.json
+valid.json
+test.json
+*.ckpt
