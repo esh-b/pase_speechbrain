@@ -31,6 +31,12 @@ error_stats: !name:speechbrain.utils.metric_stats.MetricStats
 
 ckpt_interval_minutes: 15 # save checkpoint every N min
 
+# FFT parameters
+sample_rate: 16000
+win_length: 25
+hop_length: 10
+n_fft: 2048
+
 # Training Parameters
 sample_rate: 16000
 chunk_size: 16000   # number of samples in one training point
@@ -66,6 +72,13 @@ augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
     sample_rate: !ref <sample_rate>
     speeds: [95, 100, 105]
 
+#STFT for LPS
+compute_STFT: !new:speechbrain.processing.features.STFT
+    sample_rate: !ref <sample_rate>
+    win_length: !ref <win_length>
+    hop_length: !ref <hop_length>
+    n_fft: !ref <n_fft>
+
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
     use_sincnet: True
@@ -88,6 +101,13 @@ mfcc_worker: !new:models.workers.MFCCWorker
     hidden_kernel_size: 1
     hidden_channels: 256
     out_channels: 20
+
+lps_worker: !new:models.workers.LPSWorker
+    in_channels: !ref <emb_dim>
+    hidden_blocks: 1
+    hidden_kernel_size: 1
+    hidden_channels: 256
+    out_channels: 1025
 
 lim_worker: !new:models.workers.LIMWorker
     in_channels: !ref <emb_dim> * 2
@@ -116,6 +136,8 @@ mfcc_labeller: !new:speechbrain.lobes.features.MFCC
     n_mels: 40
     n_fft: 2048
 
+lps_labeller: !new:labellers.LPSLabeller
+
 lim_labeller: !new:labellers.LIMLabeller
 
 gim_labeller: !new:labellers.GIMLabeller
@@ -142,6 +164,12 @@ workers_config:
                 lr: !ref <worker_lr_start>
             loss: MSELoss
             labeller: !ref <mfcc_labeller>
+        lps:
+            model: !ref <lps_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: MSELoss
+            labeller: !ref <lps_labeller>
     classifier:
         lim:
             model: !ref <lim_worker>
@@ -190,6 +218,7 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
         encoder: !ref <encoder_model>
         decoder_worker: !ref <decoder_worker>
         mfcc_worker: !ref <mfcc_worker>
+        lps_worker: !ref <lps_worker>
         lim_worker: !ref <lim_worker>
         gim_worker: !ref <gim_worker>
         spc_worker: !ref <spc_worker>
