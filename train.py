@@ -158,8 +158,6 @@ class PASEBrain(sb.Brain):
         preds = {}
         for name in self.workers_cfg:
             preds[name] = self.modules[name](embeddings)
-            if name == 'lim':
-                print(preds[name].shape)
         return preds
 
     def prepare_features(self, batch, stage):
