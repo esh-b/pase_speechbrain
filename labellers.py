@@ -17,6 +17,7 @@ from speechbrain.processing.features import (
     ContextWindow,
 )
 
+
 class DecoderLabeller(torch.nn.Module):
     def forward(self, wav):
         """Returns the label for the waveform autodecoder.

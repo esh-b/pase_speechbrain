@@ -65,12 +65,6 @@ env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
     noise_snr_low: 40
     noise_snr_high: 70
 
-# Adds speech change + time and frequency dropouts (time-domain implementation)
-# # A small speed change help to improve the performance of speaker-id as well.
-augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
-    sample_rate: !ref <sample_rate>
-    speeds: [95, 100, 105]
-
 #STFT for LPS
 compute_STFT: !new:speechbrain.processing.features.STFT
     sample_rate: !ref <sample_rate>
@@ -215,7 +209,6 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 # The encoder and worker models will be added dynamically to modules from config
 modules:
     env_corrupt: !ref <env_corrupt>
-    # augmentation: !ref <augmentation>
 
 lr_annealing:
     encoder: !new:speechbrain.nnet.schedulers.StepScheduler
