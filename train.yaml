@@ -31,11 +31,16 @@ error_stats: !name:speechbrain.utils.metric_stats.MetricStats
 
 ckpt_interval_minutes: 0 # save checkpoint every N min
 
-# Training Parameters
+# FFT parameters
 sample_rate: 16000
+win_length: 25
+hop_length: 10
+n_fft: 2048
+
+# Training Parameters
 chunk_size: 16000   # number of samples in one training point
-number_of_epochs: 35
-batch_size: 1
+number_of_epochs: 1
+batch_size: 16
 
 encoder_lr_start: 0.0005
 worker_lr_start: 0.0005
@@ -60,11 +65,12 @@ env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
     noise_snr_low: 40
     noise_snr_high: 70
 
-# Adds speech change + time and frequency dropouts (time-domain implementation)
-# # A small speed change help to improve the performance of speaker-id as well.
-augmentation: !new:speechbrain.lobes.augment.TimeDomainSpecAugment
+#STFT for LPS
+compute_STFT: !new:speechbrain.processing.features.STFT
     sample_rate: !ref <sample_rate>
-    speeds: [95, 100, 105]
+    win_length: !ref <win_length>
+    hop_length: !ref <hop_length>
+    n_fft: !ref <n_fft>
 
 # Models definition
 encoder_model: !new:models.encoders.PASEEncoder
@@ -88,6 +94,20 @@ mfcc_worker: !new:models.workers.MFCCWorker
     hidden_kernel_size: 1
     hidden_channels: 256
     out_channels: 20
+
+prosody_worker: !new:models.workers.ProsodyWorker
+    in_channels: !ref <emb_dim>
+    hidden_blocks: 1
+    hidden_kernel_size: 1
+    hidden_channels: 256
+    out_channels: 4
+
+lps_worker: !new:models.workers.LPSWorker
+    in_channels: !ref <emb_dim>
+    hidden_blocks: 1
+    hidden_kernel_size: 1
+    hidden_channels: 256
+    out_channels: 1025
 
 lim_worker: !new:models.workers.LIMWorker
     in_channels: !ref <emb_dim> * 2
@@ -116,6 +136,15 @@ mfcc_labeller: !new:speechbrain.lobes.features.MFCC
     n_mels: 40
     n_fft: 2048
 
+prosody_labeller: !new:labellers.ProsodyLabeller
+    hop: 160
+    win: 320
+    f0_min: 60
+    f0_max: 300
+    sr: 16000
+
+lps_labeller: !new:labellers.LPSLabeller
+
 lim_labeller: !new:labellers.LIMLabeller
 
 gim_labeller: !new:labellers.GIMLabeller
@@ -142,6 +171,18 @@ workers_config:
                 lr: !ref <worker_lr_start>
             loss: MSELoss
             labeller: !ref <mfcc_labeller>
+        prosody:
+            model: !ref <prosody_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: MSELoss
+            labeller: !ref <prosody_labeller>
+        lps:
+            model: !ref <lps_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: MSELoss
+            labeller: !ref <lps_labeller>
     classifier:
         lim:
             model: !ref <lim_worker>
@@ -149,7 +190,6 @@ workers_config:
                 lr: !ref <worker_lr_start>
             loss: BCEWithLogitsLoss
             labeller: !ref <lim_labeller>
-
         gim:
             model: !ref <gim_worker>
             optimizer: !name:torch.optim.Adam
@@ -169,7 +209,6 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 # The encoder and worker models will be added dynamically to modules from config
 modules:
     env_corrupt: !ref <env_corrupt>
-    augmentation: !ref <augmentation>
 
 lr_annealing:
     encoder: !new:speechbrain.nnet.schedulers.StepScheduler
@@ -190,6 +229,8 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
         encoder: !ref <encoder_model>
         decoder_worker: !ref <decoder_worker>
         mfcc_worker: !ref <mfcc_worker>
+        prosody_worker: !ref <prosody_worker>
+        lps_worker: !ref <lps_worker>
         lim_worker: !ref <lim_worker>
         gim_worker: !ref <gim_worker>
         spc_worker: !ref <spc_worker>

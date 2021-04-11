@@ -32,6 +32,7 @@ import numpy as np
 import speechbrain as sb
 from speechbrain import Stage
 from hyperpyyaml import load_hyperpyyaml
+import torch.nn.functional as F
 
 from mini_librispeech_prepare import prepare_mini_librispeech
 
@@ -156,7 +157,6 @@ class PASEBrain(sb.Brain):
         preds = {}
         for name in self.workers_cfg:
             preds[name] = self.modules[name](embeddings)
-
         return preds
 
     def prepare_features(self, batch, stage):
@@ -168,7 +168,7 @@ class PASEBrain(sb.Brain):
             if hasattr(self.modules, "env_corrupt"):
                 wavs = self.modules.env_corrupt(wavs, lens)
                 wavs_pos = self.modules.env_corrupt(wavs_pos, lens_pos)
-                wavs_neg = self.modules.env_corrupt(wavs, lens_neg)
+                wavs_neg =  self.modules.env_corrupt(wavs, lens_neg)
 
             # if hasattr(self.hparams, "augmentation"):
             #     wavs = self.hparams.augmentation(wavs, lens)
@@ -186,10 +186,13 @@ class PASEBrain(sb.Brain):
 
     def compute_objectives(self, predictions, batch, stage):
         preds = predictions
+        max_frame = self.hparms.chunk_size // 160
 
         labels = {
             'decoder': self.modules.decoder_labeller(batch.sig[0]).to(self.device).detach(),
-            'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :100, :].to(self.device).detach(),
+            'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :max_frame, :].to(self.device).detach(),
+            'prosody': self.modules.prosody_labeller(batch.sig[0]).to(self.device).detach(),
+            'lps': self.modules.lps_labeller(self.hparams.compute_STFT,batch.sig[0])[:, :max_frame, :].to(self.device).detach(),
             'lim': self.modules.lim_labeller(preds['lim']).to(self.device).detach(),
             'gim':self.modules.gim_labeller(preds['gim']).to(self.device).detach(),
             'spc':self.modules.spc_labeller(preds['spc']).to(self.device).detach(),
@@ -207,6 +210,7 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
+        #print([(x, y.item()) for x, y in losses.items()])
         return losses
 
     def _update_optimizer_lr(self, epoch):
