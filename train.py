@@ -190,6 +190,7 @@ class PASEBrain(sb.Brain):
         labels = {
             'decoder': self.modules.decoder_labeller(batch.sig[0]).to(self.device).detach(),
             'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :100, :].to(self.device).detach(),
+            'prosody': self.modules.prosody_labeller(batch.sig[0]).to(self.device).detach(),
             'lps': self.modules.lps_labeller(self.hparams.compute_STFT,batch.sig[0])[:, :100, :].to(self.device).detach(),
             'lim': self.modules.lim_labeller(preds['lim']).to(self.device).detach(),
             'gim':self.modules.gim_labeller(preds['gim']).to(self.device).detach(),

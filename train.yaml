@@ -38,7 +38,6 @@ hop_length: 10
 n_fft: 2048
 
 # Training Parameters
-sample_rate: 16000
 chunk_size: 16000   # number of samples in one training point
 number_of_epochs: 1
 batch_size: 16
@@ -102,6 +101,13 @@ mfcc_worker: !new:models.workers.MFCCWorker
     hidden_channels: 256
     out_channels: 20
 
+prosody_worker: !new:models.workers.ProsodyWorker
+    in_channels: !ref <emb_dim>
+    hidden_blocks: 1
+    hidden_kernel_size: 1
+    hidden_channels: 256
+    out_channels: 4
+
 lps_worker: !new:models.workers.LPSWorker
     in_channels: !ref <emb_dim>
     hidden_blocks: 1
@@ -136,6 +142,13 @@ mfcc_labeller: !new:speechbrain.lobes.features.MFCC
     n_mels: 40
     n_fft: 2048
 
+prosody_labeller: !new:labellers.ProsodyLabeller
+    hop: 160
+    win: 320
+    f0_min: 60
+    f0_max: 300
+    sr: 16000
+
 lps_labeller: !new:labellers.LPSLabeller
 
 lim_labeller: !new:labellers.LIMLabeller
@@ -164,6 +177,12 @@ workers_config:
                 lr: !ref <worker_lr_start>
             loss: MSELoss
             labeller: !ref <mfcc_labeller>
+        prosody:
+            model: !ref <prosody_worker>
+            optimizer: !name:torch.optim.Adam
+                lr: !ref <worker_lr_start>
+            loss: MSELoss
+            labeller: !ref <prosody_labeller>
         lps:
             model: !ref <lps_worker>
             optimizer: !name:torch.optim.Adam
@@ -177,7 +196,6 @@ workers_config:
                 lr: !ref <worker_lr_start>
             loss: BCEWithLogitsLoss
             labeller: !ref <lim_labeller>
-
         gim:
             model: !ref <gim_worker>
             optimizer: !name:torch.optim.Adam
@@ -197,7 +215,7 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 # The encoder and worker models will be added dynamically to modules from config
 modules:
     env_corrupt: !ref <env_corrupt>
-    augmentation: !ref <augmentation>
+    # augmentation: !ref <augmentation>
 
 lr_annealing:
     encoder: !new:speechbrain.nnet.schedulers.StepScheduler
@@ -218,6 +236,7 @@ checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
         encoder: !ref <encoder_model>
         decoder_worker: !ref <decoder_worker>
         mfcc_worker: !ref <mfcc_worker>
+        prosody_worker: !ref <prosody_worker>
         lps_worker: !ref <lps_worker>
         lim_worker: !ref <lim_worker>
         gim_worker: !ref <gim_worker>

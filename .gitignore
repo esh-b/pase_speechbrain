@@ -10,3 +10,4 @@ train.json
 valid.json
 test.json
 *.ckpt
+.DS_Store
