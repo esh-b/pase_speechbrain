@@ -179,7 +179,7 @@ class PASEBrain(sb.Brain):
 
     def compute_objectives(self, predictions, batch, stage):
         preds = predictions
-        max_frame = self.hparms.chunk_size // 160
+        max_frame = self.hparams.chunk_size // 160
 
         labels = {
             'decoder': self.modules.decoder_labeller(batch.sig[0]).to(self.device).detach(),
