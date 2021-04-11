@@ -25,11 +25,7 @@ test_annotation: !ref <data_folder>/test.json
 train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
     save_file: !ref <train_log>
 
-error_stats: !name:speechbrain.utils.metric_stats.MetricStats
-    metric: !name:speechbrain.nnet.losses.classification_error
-        reduction: batch
-
-ckpt_interval_minutes: 0 # save checkpoint every N min
+ckpt_save_interval: 1 # save checkpoint every N epochs
 
 # FFT parameters
 sample_rate: 16000
@@ -57,13 +53,10 @@ dataloader_options:
 # downloaded and prepared with this Environmental Corruption class.
 env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
     openrir_folder: !ref <data_folder>
-    babble_prob: 0.7
-    reverb_prob: 0.7
+    reverb_prob: 0.3
     noise_prob: 1.0
-    babble_snr_low: 10
-    babble_snr_high: 30
-    noise_snr_low: 40
-    noise_snr_high: 70
+    noise_snr_low: 10
+    noise_snr_high: 30
 
 #STFT for LPS
 compute_STFT: !new:speechbrain.processing.features.STFT

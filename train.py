@@ -22,7 +22,9 @@ and prepare the Mini Librispeech dataset for computation. Noise and
 reverberation are automatically added to each sample from OpenRIR.
 
 Authors
- * Mirco Ravanelli 2021
+ * Eshwanth Baskaran 2021
+ * Ge Li 2021
+ * Balaji Balasubramanian 2021
 """
 import os
 import sys
@@ -168,16 +170,7 @@ class PASEBrain(sb.Brain):
             if hasattr(self.modules, "env_corrupt"):
                 wavs = self.modules.env_corrupt(wavs, lens)
                 wavs_pos = self.modules.env_corrupt(wavs_pos, lens_pos)
-                wavs_neg =  self.modules.env_corrupt(wavs, lens_neg)
-
-            # if hasattr(self.hparams, "augmentation"):
-            #     wavs = self.hparams.augmentation(wavs, lens)
-            #     wavs_pos = self.hparams.augmentation(wavs_pos, lens_pos)
-            #     wavs_neg = self.hparams.augmentation(wavs_neg, lens_neg)
-
-
-        # if wavs.dim() == 2:
-        #     wavs = wavs.unsqueeze(2)
+                wavs_neg = self.modules.env_corrupt(wavs_neg, lens_neg)
 
         return (
             torch.cat([wavs, wavs_pos, wavs_neg], dim=0).to(self.device),
@@ -210,7 +203,6 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
-        #print([(x, y.item()) for x, y in losses.items()])
         return losses
 
     def _update_optimizer_lr(self, epoch):
@@ -229,7 +221,8 @@ class PASEBrain(sb.Brain):
             if epoch % self.hparams.lr_update_interval == 0:
                 self._update_optimizer_lr(epoch)
 
-            self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
+            if epoch == self.hparams.ckpt_save_interval:
+                self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
 
 
 def dataio_prep(hparams, data_dir, chunk_size):
@@ -278,14 +271,14 @@ def dataio_prep(hparams, data_dir, chunk_size):
     @sb.utils.data_pipeline.provides('sig','sig_pos')
     def audio_pipeline(wav):
         whole_wav = sb.dataio.dataio.read_audio(wav)
-        yield select_chunk(whole_wav) # actual signal
-        yield select_chunk(whole_wav) # positive signal
+        yield select_chunk(whole_wav)   # actual signal
+        yield select_chunk(whole_wav)   # positive signal
 
     @sb.utils.data_pipeline.takes("spk_id")
     @sb.utils.data_pipeline.provides("spkid_encoded")
     def spk_id_encoding(spkid):
       spkid_encoded =  torch.LongTensor([spk_id_encoder.encode_label(spkid)])
-      return spkid_encoded
+      yield spkid_encoded
 
     @sb.utils.data_pipeline.takes("spk_id")
     @sb.utils.data_pipeline.provides("sig_neg")
@@ -311,8 +304,6 @@ def dataio_prep(hparams, data_dir, chunk_size):
     return datasets
 
 
-
-# Recipe begins!
 if __name__ == "__main__":
 
     # Reading command line arguments.
