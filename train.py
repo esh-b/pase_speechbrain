@@ -221,7 +221,7 @@ class PASEBrain(sb.Brain):
             if epoch % self.hparams.lr_update_interval == 0:
                 self._update_optimizer_lr(epoch)
 
-            if epoch == self.hparams.ckpt_save_interval:
+            if epoch % self.hparams.ckpt_save_interval == 0:
                 self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
 
 
