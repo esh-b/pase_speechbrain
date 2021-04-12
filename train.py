@@ -103,7 +103,7 @@ class PASEBrain(sb.Brain):
     def init_workers_losses(self):
         for w_type, w_list in self.hparams.workers_config.items():
             for w_name, w_cfg in w_list.items():
-                self.workers_cfg[w_name]['loss'] = getattr(torch.nn, w_cfg['loss'])()
+                self.workers_cfg[w_name]['loss'] = w_cfg['loss']()
 
     def on_fit_start(self):
         super().on_fit_start()

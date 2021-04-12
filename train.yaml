@@ -156,44 +156,45 @@ workers_config:
             model: !ref <decoder_worker>
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
-            loss: L1Loss
+            loss: !name:torch.nn.L1Loss
+                reduction: 'sum'
             labeller: !ref <decoder_labeller>
         mfcc:
             model: !ref <mfcc_worker>
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
-            loss: MSELoss
+            loss: !name:torch.nn.MSELoss
             labeller: !ref <mfcc_labeller>
         prosody:
             model: !ref <prosody_worker>
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
-            loss: MSELoss
+            loss: !name:torch.nn.MSELoss
             labeller: !ref <prosody_labeller>
         lps:
             model: !ref <lps_worker>
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
-            loss: MSELoss
+            loss: !name:torch.nn.MSELoss
             labeller: !ref <lps_labeller>
     classifier:
         lim:
             model: !ref <lim_worker>
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
-            loss: BCEWithLogitsLoss
+            loss: !name:torch.nn.BCEWithLogitsLoss
             labeller: !ref <lim_labeller>
         gim:
             model: !ref <gim_worker>
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
-            loss: BCEWithLogitsLoss
+            loss: !name:torch.nn.BCEWithLogitsLoss
             labeller: !ref <gim_labeller>
         spc:
             model: !ref <spc_worker>
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
-            loss: BCEWithLogitsLoss
+            loss: !name:torch.nn.BCEWithLogitsLoss
             labeller: !ref <spc_labeller>
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
