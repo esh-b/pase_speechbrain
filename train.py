@@ -177,19 +177,30 @@ class PASEBrain(sb.Brain):
             torch.cat([lens, lens_pos, lens_neg], dim=0).to(self.device),
         )
 
-    def compute_objectives(self, predictions, batch, stage):
-        preds = predictions
+    def _get_worker_labels(self, predictions, batch):
         max_frame = self.hparams.chunk_size // 160
 
-        labels = {
-            'decoder': self.modules.decoder_labeller(batch.sig[0]).to(self.device).detach(),
-            'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :max_frame, :].to(self.device).detach(),
-            'prosody': self.modules.prosody_labeller(batch.sig[0]).to(self.device).detach(),
-            'lps': self.modules.lps_labeller(self.hparams.compute_STFT,batch.sig[0])[:, :max_frame, :].to(self.device).detach(),
-            'lim': self.modules.lim_labeller(preds['lim']).to(self.device).detach(),
-            'gim':self.modules.gim_labeller(preds['gim']).to(self.device).detach(),
-            'spc':self.modules.spc_labeller(preds['spc']).to(self.device).detach(),
-        }
+        labels = {}
+        for w_name in self.workers_cfg:
+            labeller = getattr(self.modules, f'{w_name}_labeller', None)
+            if not labeller:
+                raise ValueError(f'Labeller not found for worker {w_name}')
+
+            if w_name == 'decoder':
+                labels[w_name] = labeller(batch.sig[0]).to(self.device).detach()
+            elif w_name == 'mfcc':
+                labels[w_name] = labeller(batch.sig[0])[:, :max_frame, :].to(self.device).detach()
+            elif w_name == 'prosody':
+                labels[w_name] = labeller(batch.sig[0]).to(self.device).detach()
+            elif w_name == 'lps':
+                labels[w_name] = labeller(self.hparams.compute_STFT,batch.sig[0])[:, :max_frame, :].to(self.device).detach()
+            else:
+                labels[w_name] = labeller(predictions[w_name]).to(self.device).detach()
+        return labels
+
+    def compute_objectives(self, predictions, batch, stage):
+        preds = predictions
+        labels = self._get_worker_labels(predictions, batch)
 
         total_loss = 0
         losses = {}
@@ -217,12 +228,29 @@ class PASEBrain(sb.Brain):
         stage_stats = {"loss": stage_loss}
         if stage == sb.Stage.TRAIN:
             self.train_loss = stage_loss
+        else:
+            stats = {
+                "loss": stage_loss,
+            }
 
+        if stage == sb.Stage.TRAIN:
             if epoch % self.hparams.lr_update_interval == 0:
                 self._update_optimizer_lr(epoch)
 
             if epoch % self.hparams.ckpt_save_interval == 0:
                 self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
+        if stage == sb.Stage.VALID:
+            # The train_logger writes a summary to stdout and to the logfile.
+            self.hparams.train_logger.log_stats(
+                {"Epoch": epoch,},
+                train_stats={"loss": self.train_loss},
+                valid_stats=stats,
+            )
+        if stage == sb.Stage.TEST:
+            self.hparams.train_logger.log_stats(
+                {"Epoch loaded": self.hparams.epoch_counter.current},
+                test_stats=stats,
+            )
 
 
 def dataio_prep(hparams, data_dir, chunk_size):
