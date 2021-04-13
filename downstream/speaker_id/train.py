@@ -118,7 +118,7 @@ class SpkIdBrain(sb.Brain):
             spkid = torch.cat([spkid, spkid], dim=0)
             lens = torch.cat([lens, lens])
 
-        spkid = spkid.squeeze()
+        spkid = spkid.squeeze(-1)
         # Compute the cost function
         loss = sb.nnet.losses.nll_loss(predictions, spkid)
 
