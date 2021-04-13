@@ -110,6 +110,8 @@ class PASEBrain(sb.Brain):
 
         self.init_workers_losses()
 
+        self.curr_epoch = 0
+
     def fit_batch(self, batch):
         # Managing automatic mixed precision
         # if self.auto_mix_prec:
@@ -151,14 +153,34 @@ class PASEBrain(sb.Brain):
     def compute_forward(self, batch, stage):
         batch = batch.to(self.device)
 
+        self.curr_epoch += 1
+        import matplotlib.pyplot as plt
+        # plt.plot(range(16000), batch.sig[0][0].detach().cpu().squeeze(), label='signal 1')
+        # plt.plot(range(16000), batch.sig[0][1].detach().cpu().squeeze(), label='signal 2', alpha=0.6)
+        # plt.legend()
+        # plt.show()
+
         feats, lens = self.prepare_features(batch, stage)
         embeddings = self.modules['encoder'](feats)
 
-        embeddings = torch.chunk(embeddings, chunks=3, dim=0) # 3 chunks - sig, sig_pos, sig_neg
+        embeddings = torch.chunk(embeddings, chunks=3, dim=0)   # 3 chunks - sig, sig_pos, sig_neg
 
         preds = {}
         for name in self.workers_cfg:
             preds[name] = self.modules[name](embeddings)
+
+        if self.curr_epoch % 50 == 0:
+            plt.plot(range(16000), preds['decoder'][0].detach().cpu().squeeze(), label='pred')
+            plt.plot(range(16000), batch.sig[0][0].detach().cpu(), label='input', alpha=0.6)
+            plt.legend()
+            plt.show()
+            plt.clf()
+
+            plt.plot(range(16000), preds['decoder'][1].detach().cpu().squeeze(), label='pred')
+            plt.plot(range(16000), batch.sig[0][1].detach().cpu(), label='input', alpha=0.6)
+            plt.legend()
+            plt.show()
+            plt.clf()
         return preds
 
     def prepare_features(self, batch, stage):
@@ -273,19 +295,19 @@ def dataio_prep(hparams, data_dir, chunk_size):
         to the appropriate DynamicItemDataset object.
     """
 
-    def select_chunk(wav):
+    def select_chunk(wav, start_idx):
         """Select a chunk of size `chunk_size` from a given wav file"""
 
         if len(wav) - chunk_size < 0:   # If wav is less than required chunk size
             P = chunk_size - len(wav)
             wav = F.pad(wav.view(1, 1, -1), (0, P), mode='reflect').view(-1)
 
-        start_idx = np.random.randint(0, len(wav) - chunk_size)
+        # start_idx = np.random.randint(0, len(wav) - chunk_size)
         return wav[start_idx: start_idx + chunk_size]
 
     datasets = {}
     hparams["dataloader_options"]["shuffle"] = False
-    for dataset in ["train", "valid", "test"]:
+    for dataset in ["train"]:
         datasets[dataset] = sb.dataio.dataset.DynamicItemDataset.from_json(
             json_path=hparams[f"{dataset}_annotation"],
             replacements={"data_root": hparams["data_folder"]},
@@ -299,8 +321,8 @@ def dataio_prep(hparams, data_dir, chunk_size):
     @sb.utils.data_pipeline.provides('sig','sig_pos')
     def audio_pipeline(wav):
         whole_wav = sb.dataio.dataio.read_audio(wav)
-        yield select_chunk(whole_wav)   # actual signal
-        yield select_chunk(whole_wav)   # positive signal
+        yield select_chunk(whole_wav, 1)   # actual signal
+        yield select_chunk(whole_wav, 2000)   # positive signal
 
     @sb.utils.data_pipeline.takes("spk_id")
     @sb.utils.data_pipeline.provides("spkid_encoded")
@@ -321,9 +343,9 @@ def dataio_prep(hparams, data_dir, chunk_size):
 
         rand_wav = np.random.choice(files)
         rand_whole_wav = sb.dataio.dataio.read_audio(rand_wav)
-        yield select_chunk(rand_whole_wav)   # negative signal
+        yield select_chunk(rand_whole_wav, 1)   # negative signal
 
-    for dataset in ["train", "valid", "test"]:
+    for dataset in ["train"]:
         datasets[dataset].add_dynamic_item(audio_pipeline)
         datasets[dataset].add_dynamic_item(spk_id_encoding)
         datasets[dataset].add_dynamic_item(rand_chunk)
@@ -386,13 +408,13 @@ if __name__ == "__main__":
     pase_brain.fit(
         epoch_counter=pase_brain.hparams.epoch_counter,
         train_set=datasets["train"],
-        valid_set=datasets["valid"],
+        valid_set=None,
         train_loader_kwargs=hparams["dataloader_options"],
-        valid_loader_kwargs=hparams["dataloader_options"],
+        valid_loader_kwargs=None,
     )
     # Load the best checkpoint for evaluation
-    test_stats = pase_brain.evaluate(
-        test_set=datasets["test"],
-        min_key="error",
-        test_loader_kwargs=hparams["dataloader_options"],
-    )
+    # test_stats = pase_brain.evaluate(
+    #     test_set=datasets["test"],
+    #     min_key="error",
+    #     test_loader_kwargs=hparams["dataloader_options"],
+    # )

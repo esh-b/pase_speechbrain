@@ -25,7 +25,7 @@ test_annotation: !ref <data_folder>/test.json
 train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
     save_file: !ref <train_log>
 
-ckpt_save_interval: 1 # save checkpoint every N epochs
+ckpt_save_interval: 100 # save checkpoint every N epochs
 
 # FFT parameters
 sample_rate: 16000
@@ -35,13 +35,13 @@ n_fft: 2048
 
 # Training Parameters
 chunk_size: 16000   # number of samples in one training point
-number_of_epochs: 35
-batch_size: 1
+number_of_epochs: 400
+batch_size: 2
 
 encoder_lr_start: 0.0005
 worker_lr_start: 0.0005
 decay_factor: 0.5
-lr_update_interval: 30  # epochs
+lr_update_interval: 200  # epochs
 
  # dimensionality of the embeddings
 emb_dim: 100
@@ -159,43 +159,43 @@ workers_config:
             loss: !name:torch.nn.L1Loss
                 reduction: 'sum'
             labeller: !ref <decoder_labeller>
-        mfcc:
-            model: !ref <mfcc_worker>
-            optimizer: !name:torch.optim.Adam
-                lr: !ref <worker_lr_start>
-            loss: !name:torch.nn.MSELoss
-            labeller: !ref <mfcc_labeller>
-        prosody:
-            model: !ref <prosody_worker>
-            optimizer: !name:torch.optim.Adam
-                lr: !ref <worker_lr_start>
-            loss: !name:torch.nn.MSELoss
-            labeller: !ref <prosody_labeller>
-        lps:
-            model: !ref <lps_worker>
-            optimizer: !name:torch.optim.Adam
-                lr: !ref <worker_lr_start>
-            loss: !name:torch.nn.MSELoss
-            labeller: !ref <lps_labeller>
-    classifier:
-        lim:
-            model: !ref <lim_worker>
-            optimizer: !name:torch.optim.Adam
-                lr: !ref <worker_lr_start>
-            loss: !name:torch.nn.BCEWithLogitsLoss
-            labeller: !ref <lim_labeller>
-        gim:
-            model: !ref <gim_worker>
-            optimizer: !name:torch.optim.Adam
-                lr: !ref <worker_lr_start>
-            loss: !name:torch.nn.BCEWithLogitsLoss
-            labeller: !ref <gim_labeller>
-        spc:
-            model: !ref <spc_worker>
-            optimizer: !name:torch.optim.Adam
-                lr: !ref <worker_lr_start>
-            loss: !name:torch.nn.BCEWithLogitsLoss
-            labeller: !ref <spc_labeller>
+    #     mfcc:
+    #         model: !ref <mfcc_worker>
+    #         optimizer: !name:torch.optim.Adam
+    #             lr: !ref <worker_lr_start>
+    #         loss: !name:torch.nn.MSELoss
+    #         labeller: !ref <mfcc_labeller>
+    #     prosody:
+    #         model: !ref <prosody_worker>
+    #         optimizer: !name:torch.optim.Adam
+    #             lr: !ref <worker_lr_start>
+    #         loss: !name:torch.nn.MSELoss
+    #         labeller: !ref <prosody_labeller>
+    #     lps:
+    #         model: !ref <lps_worker>
+    #         optimizer: !name:torch.optim.Adam
+    #             lr: !ref <worker_lr_start>
+    #         loss: !name:torch.nn.MSELoss
+    #         labeller: !ref <lps_labeller>
+    # classifier:
+    #     lim:
+    #         model: !ref <lim_worker>
+    #         optimizer: !name:torch.optim.Adam
+    #             lr: !ref <worker_lr_start>
+    #         loss: !name:torch.nn.BCEWithLogitsLoss
+    #         labeller: !ref <lim_labeller>
+    #     gim:
+    #         model: !ref <gim_worker>
+    #         optimizer: !name:torch.optim.Adam
+    #             lr: !ref <worker_lr_start>
+    #         loss: !name:torch.nn.BCEWithLogitsLoss
+    #         labeller: !ref <gim_labeller>
+    #     spc:
+    #         model: !ref <spc_worker>
+    #         optimizer: !name:torch.optim.Adam
+    #             lr: !ref <worker_lr_start>
+    #         loss: !name:torch.nn.BCEWithLogitsLoss
+    #         labeller: !ref <spc_labeller>
 
 epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
     limit: !ref <number_of_epochs>

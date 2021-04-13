@@ -94,8 +94,10 @@ def create_json(wav_list, json_file):
     """
     # Processing all the wav files in the list
     json_dict = {}
+    count = 0
     for wav_file in wav_list:
-
+        if count > 1:
+            break
         # Reading the signal (to retrieve duration in seconds)
         signal = read_audio(wav_file)
         duration = signal.shape[0] / SAMPLERATE
@@ -114,6 +116,7 @@ def create_json(wav_list, json_file):
             "length": duration,
             "spk_id": spk_id,
         }
+        count += 1
 
     # Writing the dictionary to the json file
     with open(json_file, mode="w") as json_f:
