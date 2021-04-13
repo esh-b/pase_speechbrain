@@ -35,7 +35,7 @@ class WaveformWorker(torch.nn.Module):
                         padding=padding,
                     ),
                     BatchNorm1d(input_size=out_channels),
-                    activation(out_channels, init=0),
+                    activation(),
                 ]
             )
             in_channels = decoder_channels[block_index]
@@ -48,7 +48,7 @@ class WaveformWorker(torch.nn.Module):
                     kernel_size=1,
                     padding='valid',
                 ),
-                nn.PReLU(lin_neurons),
+                activation(),
                 Conv1d(in_channels=lin_neurons, out_channels=1, kernel_size=1, padding='valid')
             ],
         )
@@ -57,11 +57,11 @@ class WaveformWorker(torch.nn.Module):
         x = x[0]
         for layer in self.blocks:
             try:
-                if layer._get_name() == 'PReLU':
-                    x = x.transpose(1, -1)
+                # if layer._get_name() == 'PReLU':
+                #     x = x.transpose(1, -1)
                 x = layer(x, *args, **kwargs)
-                if layer._get_name() == 'PReLU':
-                    x = x.transpose(1, -1)
+                # if layer._get_name() == 'PReLU':
+                #     x = x.transpose(1, -1)
             except TypeError:
                 x = layer(x)
         return x

@@ -110,6 +110,7 @@ class PASEBrain(sb.Brain):
 
         self.init_workers_losses()
 
+        self.curr_iter = 0
         self.curr_epoch = 0
 
     def fit_batch(self, batch):
@@ -153,7 +154,7 @@ class PASEBrain(sb.Brain):
     def compute_forward(self, batch, stage):
         batch = batch.to(self.device)
 
-        self.curr_epoch += 1
+        self.curr_iter += 1
         import matplotlib.pyplot as plt
         # plt.plot(range(16000), batch.sig[0][0].detach().cpu().squeeze(), label='signal 1')
         # plt.plot(range(16000), batch.sig[0][1].detach().cpu().squeeze(), label='signal 2', alpha=0.6)
@@ -169,18 +170,23 @@ class PASEBrain(sb.Brain):
         for name in self.workers_cfg:
             preds[name] = self.modules[name](embeddings)
 
-        if self.curr_epoch % 50 == 0:
-            plt.plot(range(16000), preds['decoder'][0].detach().cpu().squeeze(), label='pred')
-            plt.plot(range(16000), batch.sig[0][0].detach().cpu(), label='input', alpha=0.6)
-            plt.legend()
-            plt.show()
-            plt.clf()
+        if self.curr_iter % 38 == 0:
+            self.curr_epoch += 1
 
-            plt.plot(range(16000), preds['decoder'][1].detach().cpu().squeeze(), label='pred')
-            plt.plot(range(16000), batch.sig[0][1].detach().cpu(), label='input', alpha=0.6)
-            plt.legend()
-            plt.show()
-            plt.clf()
+            print('inside...')
+
+            if self.curr_epoch % 10 == 0:
+                plt.plot(range(16000), preds['decoder'][0].detach().cpu().squeeze(), label='pred')
+                plt.plot(range(16000), batch.sig[0][0].detach().cpu(), label='input', alpha=0.6)
+                plt.legend()
+                plt.savefig(f'epoch_{self.curr_epoch}_0.png')
+                plt.clf()
+
+                plt.plot(range(16000), preds['decoder'][1].detach().cpu().squeeze(), label='pred')
+                plt.plot(range(16000), batch.sig[0][1].detach().cpu(), label='input', alpha=0.6)
+                plt.legend()
+                plt.savefig(f'epoch_{self.curr_epoch}_1.png')
+                plt.clf()
         return preds
 
     def prepare_features(self, batch, stage):
