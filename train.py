@@ -414,9 +414,9 @@ if __name__ == "__main__":
     pase_brain.fit(
         epoch_counter=pase_brain.hparams.epoch_counter,
         train_set=datasets["train"],
-        valid_set=None,
+        valid_set=datasets["valid"],
         train_loader_kwargs=hparams["dataloader_options"],
-        valid_loader_kwargs=None,
+        valid_loader_kwargs=hparams["dataloader_options"],
     )
     # Load the best checkpoint for evaluation
     # test_stats = pase_brain.evaluate(
