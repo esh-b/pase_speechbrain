@@ -157,7 +157,7 @@ workers_config:
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
             loss: !name:torch.nn.L1Loss
-                reduction: 'sum'
+                reduction: 'mean'
             labeller: !ref <decoder_labeller>
     #     mfcc:
     #         model: !ref <mfcc_worker>

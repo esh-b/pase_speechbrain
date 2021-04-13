@@ -313,7 +313,7 @@ def dataio_prep(hparams, data_dir, chunk_size):
 
     datasets = {}
     hparams["dataloader_options"]["shuffle"] = False
-    for dataset in ["train"]:
+    for dataset in ["train", "valid", "test"]:
         datasets[dataset] = sb.dataio.dataset.DynamicItemDataset.from_json(
             json_path=hparams[f"{dataset}_annotation"],
             replacements={"data_root": hparams["data_folder"]},
@@ -351,7 +351,7 @@ def dataio_prep(hparams, data_dir, chunk_size):
         rand_whole_wav = sb.dataio.dataio.read_audio(rand_wav)
         yield select_chunk(rand_whole_wav, 1)   # negative signal
 
-    for dataset in ["train"]:
+    for dataset in ["train", "valid", "test"]:
         datasets[dataset].add_dynamic_item(audio_pipeline)
         datasets[dataset].add_dynamic_item(spk_id_encoding)
         datasets[dataset].add_dynamic_item(rand_chunk)
