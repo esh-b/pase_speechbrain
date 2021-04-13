@@ -122,7 +122,7 @@ gim_worker: !new:models.workers.GIMWorker
     hidden_channels: 256
 
 spc_worker: !new:models.workers.SPCWorker
-    in_channels: !ref <emb_dim>
+    in_channels: !ref <emb_dim> * 6
     hidden_blocks: 1
     hidden_kernel_size: 1
     hidden_channels: 256
