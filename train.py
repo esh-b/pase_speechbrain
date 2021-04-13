@@ -22,7 +22,9 @@ and prepare the Mini Librispeech dataset for computation. Noise and
 reverberation are automatically added to each sample from OpenRIR.
 
 Authors
- * Mirco Ravanelli 2021
+ * Eshwanth Baskaran 2021
+ * Ge Li 2021
+ * Balaji Balasubramanian 2021
 """
 import os
 import sys
@@ -101,7 +103,7 @@ class PASEBrain(sb.Brain):
     def init_workers_losses(self):
         for w_type, w_list in self.hparams.workers_config.items():
             for w_name, w_cfg in w_list.items():
-                self.workers_cfg[w_name]['loss'] = getattr(torch.nn, w_cfg['loss'])()
+                self.workers_cfg[w_name]['loss'] = w_cfg['loss']()
 
     def on_fit_start(self):
         super().on_fit_start()
@@ -168,35 +170,37 @@ class PASEBrain(sb.Brain):
             if hasattr(self.modules, "env_corrupt"):
                 wavs = self.modules.env_corrupt(wavs, lens)
                 wavs_pos = self.modules.env_corrupt(wavs_pos, lens_pos)
-                wavs_neg =  self.modules.env_corrupt(wavs, lens_neg)
-
-            # if hasattr(self.hparams, "augmentation"):
-            #     wavs = self.hparams.augmentation(wavs, lens)
-            #     wavs_pos = self.hparams.augmentation(wavs_pos, lens_pos)
-            #     wavs_neg = self.hparams.augmentation(wavs_neg, lens_neg)
-
-
-        # if wavs.dim() == 2:
-        #     wavs = wavs.unsqueeze(2)
+                wavs_neg = self.modules.env_corrupt(wavs_neg, lens_neg)
 
         return (
             torch.cat([wavs, wavs_pos, wavs_neg], dim=0).to(self.device),
             torch.cat([lens, lens_pos, lens_neg], dim=0).to(self.device),
         )
 
+    def _get_worker_labels(self, predictions, batch):
+        max_frame = self.hparams.chunk_size // 160
+
+        labels = {}
+        for w_name in self.workers_cfg:
+            labeller = getattr(self.modules, f'{w_name}_labeller', None)
+            if not labeller:
+                raise ValueError(f'Labeller not found for worker {w_name}')
+
+            if w_name == 'decoder':
+                labels[w_name] = labeller(batch.sig[0]).to(self.device).detach()
+            elif w_name == 'mfcc':
+                labels[w_name] = labeller(batch.sig[0])[:, :max_frame, :].to(self.device).detach()
+            elif w_name == 'prosody':
+                labels[w_name] = labeller(batch.sig[0]).to(self.device).detach()
+            elif w_name == 'lps':
+                labels[w_name] = labeller(self.hparams.compute_STFT,batch.sig[0])[:, :max_frame, :].to(self.device).detach()
+            else:
+                labels[w_name] = labeller(predictions[w_name]).to(self.device).detach()
+        return labels
+
     def compute_objectives(self, predictions, batch, stage):
         preds = predictions
-        max_frame = self.hparms.chunk_size // 160
-
-        labels = {
-            'decoder': self.modules.decoder_labeller(batch.sig[0]).to(self.device).detach(),
-            'mfcc': self.modules.mfcc_labeller(batch.sig[0])[:, :max_frame, :].to(self.device).detach(),
-            'prosody': self.modules.prosody_labeller(batch.sig[0]).to(self.device).detach(),
-            'lps': self.modules.lps_labeller(self.hparams.compute_STFT,batch.sig[0])[:, :max_frame, :].to(self.device).detach(),
-            'lim': self.modules.lim_labeller(preds['lim']).to(self.device).detach(),
-            'gim':self.modules.gim_labeller(preds['gim']).to(self.device).detach(),
-            'spc':self.modules.spc_labeller(preds['spc']).to(self.device).detach(),
-        }
+        labels = self._get_worker_labels(predictions, batch)
 
         total_loss = 0
         losses = {}
@@ -225,11 +229,29 @@ class PASEBrain(sb.Brain):
         stage_stats = {"loss": stage_loss}
         if stage == sb.Stage.TRAIN:
             self.train_loss = stage_loss
+        else:
+            stats = {
+                "loss": stage_loss,
+            }
 
+        if stage == sb.Stage.TRAIN:
             if epoch % self.hparams.lr_update_interval == 0:
                 self._update_optimizer_lr(epoch)
 
-            self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
+            if epoch % self.hparams.ckpt_save_interval == 0:
+                self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
+        if stage == sb.Stage.VALID:
+            # The train_logger writes a summary to stdout and to the logfile.
+            self.hparams.train_logger.log_stats(
+                {"Epoch": epoch,},
+                train_stats={"loss": self.train_loss},
+                valid_stats=stats,
+            )
+        if stage == sb.Stage.TEST:
+            self.hparams.train_logger.log_stats(
+                {"Epoch loaded": self.hparams.epoch_counter.current},
+                test_stats=stats,
+            )
 
 
 def dataio_prep(hparams, data_dir, chunk_size):
@@ -278,14 +300,14 @@ def dataio_prep(hparams, data_dir, chunk_size):
     @sb.utils.data_pipeline.provides('sig','sig_pos')
     def audio_pipeline(wav):
         whole_wav = sb.dataio.dataio.read_audio(wav)
-        yield select_chunk(whole_wav) # actual signal
-        yield select_chunk(whole_wav) # positive signal
+        yield select_chunk(whole_wav)   # actual signal
+        yield select_chunk(whole_wav)   # positive signal
 
     @sb.utils.data_pipeline.takes("spk_id")
     @sb.utils.data_pipeline.provides("spkid_encoded")
     def spk_id_encoding(spkid):
       spkid_encoded =  torch.LongTensor([spk_id_encoder.encode_label(spkid)])
-      return spkid_encoded
+      yield spkid_encoded
 
     @sb.utils.data_pipeline.takes("spk_id")
     @sb.utils.data_pipeline.provides("sig_neg")
@@ -311,8 +333,6 @@ def dataio_prep(hparams, data_dir, chunk_size):
     return datasets
 
 
-
-# Recipe begins!
 if __name__ == "__main__":
 
     # Reading command line arguments.

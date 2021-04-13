@@ -4,9 +4,8 @@ import torch.nn as nn
 import speechbrain as sb
 from speechbrain.nnet.CNN import Conv1d
 from speechbrain.nnet.linear import Linear
-from speechbrain.nnet.CNN import Conv1d
+from speechbrain.nnet.CNN import Conv1d, ConvTranspose1d
 from speechbrain.nnet.normalization import BatchNorm1d
-from deconv import ConvTranspose1d
 
 
 class WaveformWorker(torch.nn.Module):
