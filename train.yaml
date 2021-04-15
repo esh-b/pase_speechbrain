@@ -11,7 +11,7 @@ __set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
 # Reading data from the local disk of the compute node (e.g. $SLURM_TMPDIR with SLURM-based clusters) is very important.
 # It allows you to read the data much faster without slowing down the shared filesystem.
 data_folder: ./data
-output_folder: !ref ./results/<seed>
+output_folder: !ref ./results/exp_1
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
 
@@ -35,13 +35,13 @@ n_fft: 2048
 
 # Training Parameters
 chunk_size: 16000   # number of samples in one training point
-number_of_epochs: 1
-batch_size: 16
+number_of_epochs: 200
+batch_size: 32
 
 encoder_lr_start: 0.0005
 worker_lr_start: 0.0005
 decay_factor: 0.5
-lr_update_interval: 30  # epochs
+lr_update_interval: 20  # epochs
 
  # dimensionality of the embeddings
 emb_dim: 100
@@ -51,12 +51,12 @@ dataloader_options:
 
 # Added noise and reverb come from OpenRIR dataset, automatically
 # downloaded and prepared with this Environmental Corruption class.
-env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
-    openrir_folder: !ref <data_folder>
-    reverb_prob: 0.3
-    noise_prob: 1.0
-    noise_snr_low: 10
-    noise_snr_high: 30
+# env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
+#     openrir_folder: !ref <data_folder>
+#     reverb_prob: 0.3
+#     noise_prob: 1.0
+#     noise_snr_low: 10
+#     noise_snr_high: 30
 
 #STFT for LPS
 compute_STFT: !new:speechbrain.processing.features.STFT
@@ -157,7 +157,7 @@ workers_config:
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
             loss: !name:torch.nn.L1Loss
-                reduction: 'sum'
+                reduction: 'mean'
             labeller: !ref <decoder_labeller>
         mfcc:
             model: !ref <mfcc_worker>
@@ -202,7 +202,7 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 
 # The encoder and worker models will be added dynamically to modules from config
 modules:
-    env_corrupt: !ref <env_corrupt>
+    #env_corrupt: !ref <env_corrupt>
 
 lr_annealing:
     encoder: !new:speechbrain.nnet.schedulers.StepScheduler
