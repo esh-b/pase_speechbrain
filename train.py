@@ -238,7 +238,9 @@ class PASEBrain(sb.Brain):
                 self._update_optimizer_lr(epoch)
 
             if epoch % self.hparams.ckpt_save_interval == 0:
-                self.checkpointer.save_and_keep_only(meta=stage_stats, num_to_keep=5, min_keys=["loss"])
+                self.checkpointer.save_and_keep_only(meta=stage_stats,
+                                                     num_to_keep=self.hparams.num_ckpts_keep,
+                                                     min_keys=["loss"])
         if stage == sb.Stage.VALID:
             # The train_logger writes a summary to stdout and to the logfile.
             self.hparams.train_logger.log_stats(

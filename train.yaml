@@ -26,6 +26,7 @@ train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
     save_file: !ref <train_log>
 
 ckpt_save_interval: 1 # save checkpoint every N epochs
+num_ckpts_keep: 5 # number of ckpts to keep, delete other old ones
 
 # FFT parameters
 sample_rate: 16000
