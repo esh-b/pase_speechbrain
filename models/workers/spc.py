@@ -42,6 +42,8 @@ class SPCWorker(torch.nn.Module):
     def select_chunk_SPC(self, input_tensor):
     # select samples for SPC
     # input_tensor: (batch, number_of_frames, embedding_size)
+
+      batch_size = input_tensor.shape[0]
       framnum = input_tensor.shape[1]
 
       idx_ls1 = np.arange(30, framnum - 30)
@@ -57,20 +59,21 @@ class SPCWorker(torch.nn.Module):
       xp_ids =[xp_id - i for i in range(4, -1, -1)]
       xn_ids = [xn_id - i for i in range(4, -1, -1)]
 
-      x_anchor = input_tensor[:,[anchor_idx],:]
-      x_pos = input_tensor[:,xp_ids,:]
-      x_neg = input_tensor[:,xn_ids,:]
+      x_anchor = input_tensor[:,[anchor_idx],:].contiguous().view(batch_size,1, -1)#(batch, 1,embedding_size)
+      x_pos = input_tensor[:,xp_ids,:].contiguous().view(batch_size,1, -1)#(batch, 1,5*embedding_size)
+      x_neg = input_tensor[:,xn_ids,:].contiguous().view(batch_size,1, -1)#(batch, 1,5*embedding_size)
       return x_anchor, x_pos, x_neg
+
 
     def make_samples(self, embeddings):
         embedding_si = embeddings[0]#(batch, number_of_frames, embedding_size)
 
         x_anchor, x_pos_spc, x_neg_spc = self.select_chunk_SPC(embedding_si)
 
-        x_pos = torch.cat((x_anchor, x_pos_spc), dim=1)#(batch, 6, embedding_size)
-        x_neg = torch.cat((x_anchor, x_neg_spc), dim=1)#(batch, 6, embedding_size)
-        # return torch.cat((x_pos, x_neg), dim=0).to(device)
-        return torch.cat((x_pos, x_neg), dim=0)
+        x_pos = torch.cat((x_anchor, x_pos_spc), dim=-1)#(batch,1, 6*embedding_size)
+        x_neg = torch.cat((x_anchor, x_neg_spc), dim=-1)#(batch,1, 6*embedding_size)
+
+        return torch.cat((x_pos, x_neg), dim=0)#(2*batch, 1,6*embedding_size)
 
     def forward(self, embeddings, *args, **kwargs):
         x = self.make_samples(embeddings)
@@ -83,5 +86,4 @@ class SPCWorker(torch.nn.Module):
                     x = x.transpose(1, -1)
             except TypeError:
                 x = layer(x)
-
         return x

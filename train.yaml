@@ -36,13 +36,13 @@ n_fft: 2048
 
 # Training Parameters
 chunk_size: 16000   # number of samples in one training point
-number_of_epochs: 35
-batch_size: 1
+number_of_epochs: 200
+batch_size: 32
 
 encoder_lr_start: 0.0005
 worker_lr_start: 0.0005
 decay_factor: 0.5
-lr_update_interval: 30  # epochs
+lr_update_interval: 20  # epochs
 
  # dimensionality of the embeddings
 emb_dim: 100
@@ -116,7 +116,7 @@ gim_worker: !new:models.workers.GIMWorker
     hidden_channels: 256
 
 spc_worker: !new:models.workers.SPCWorker
-    in_channels: !ref <emb_dim>
+    in_channels: !ref <emb_dim> * 6
     hidden_blocks: 1
     hidden_kernel_size: 1
     hidden_channels: 256
@@ -158,7 +158,7 @@ workers_config:
             optimizer: !name:torch.optim.Adam
                 lr: !ref <worker_lr_start>
             loss: !name:torch.nn.L1Loss
-                reduction: 'sum'
+                reduction: 'mean'
             labeller: !ref <decoder_labeller>
         mfcc:
             model: !ref <mfcc_worker>
