@@ -11,7 +11,7 @@ __set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
 # Reading data from the local disk of the compute node (e.g. $SLURM_TMPDIR with SLURM-based clusters) is very important.
 # It allows you to read the data much faster without slowing down the shared filesystem.
 data_folder: ./data
-output_folder: !ref ./results/exp_1
+output_folder: !ref ./results/<seed>
 save_folder: !ref <output_folder>/save
 train_log: !ref <output_folder>/train_log.txt
 
@@ -52,12 +52,12 @@ dataloader_options:
 
 # Added noise and reverb come from OpenRIR dataset, automatically
 # downloaded and prepared with this Environmental Corruption class.
-# env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
-#     openrir_folder: !ref <data_folder>
-#     reverb_prob: 0.3
-#     noise_prob: 1.0
-#     noise_snr_low: 10
-#     noise_snr_high: 30
+env_corrupt: !new:speechbrain.lobes.augment.EnvCorrupt
+    openrir_folder: !ref <data_folder>
+    reverb_prob: 0.3
+    noise_prob: 1.0
+    noise_snr_low: 10
+    noise_snr_high: 30
 
 #STFT for LPS
 compute_STFT: !new:speechbrain.processing.features.STFT
@@ -203,7 +203,7 @@ epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
 
 # The encoder and worker models will be added dynamically to modules from config
 modules:
-    #env_corrupt: !ref <env_corrupt>
+    env_corrupt: !ref <env_corrupt>
 
 lr_annealing:
     encoder: !new:speechbrain.nnet.schedulers.StepScheduler
