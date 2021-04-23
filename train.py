@@ -214,6 +214,7 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
+        #print([(x, y.item()) for x, y in losses.items()])
         return losses
 
     def _update_optimizer_lr(self, epoch):
