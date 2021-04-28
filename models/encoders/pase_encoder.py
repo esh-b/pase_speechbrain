@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from torchqrnn import QRNN
+from qrnn import QRNN
 import speechbrain as sb
 from speechbrain.nnet.pooling import StatisticsPooling
 from speechbrain.nnet.CNN import Conv1d, SincConv
@@ -56,12 +56,13 @@ class PASEEncoder(torch.nn.Module):
         # Add Q-RNN block
         if use_qrnn:
             self.blocks.append(
-                QRNN(input_size=in_channels,
-                     hidden_size=qrnn_hidden_neurons,
-                     num_layers=1,
-                     dropout=0,
-                     window=2,
-                )
+                QRNN(
+                    input_size=in_channels,
+                    hidden_size=qrnn_hidden_neurons,
+                    num_layers=1,
+                    dropout=0,
+                    window=2,
+                ),
             )
             in_channels = qrnn_hidden_neurons
 
@@ -81,6 +82,7 @@ class PASEEncoder(torch.nn.Module):
     def forward(self, x, *args, **kwargs):
         for layer in self.blocks:
             if layer._get_name() == 'QRNN':
+                in_ = x
                 x = x.transpose(0, 1)
                 x, _ = layer(x)
                 x = x.transpose(0, 1)
