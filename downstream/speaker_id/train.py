@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Recipe for training a speaker-id system using PASE encoder model.
+"""Recipe for training a speaker-id system using PASE trained encoder model.
 
 To run this recipe, do the following:
 > python train.py train.yaml
