@@ -33,7 +33,7 @@ This recipe trains a self-supervised learning system consisting of an encoder an
 - The encoder ckpts will be saved in the `results` directory according to the configuration in the yaml file.
 
 ### Note before installing requirements
-- The `cupy` module (mentioned in `requirements.txt`) is used by `QRNN` module and it takes time to build the wheel and install the package by default. Alternatively, the instructions mentioned in [this link](https://docs.cupy.dev/en/stable/install.html#installing-cupy) installs the module real-quick. Please make sure to run the command `python -m cupyx.tools.install_library --cuda <VERSION> --library cutensor` after installing cupy to install the additional cuda libraries required by cupy.
+- The `cupy` module (mentioned in `requirements.txt`) is used by `QRNN` module and it takes time to build the wheel and install the package by default. Alternatively, the instructions mentioned in [this link](https://docs.cupy.dev/en/stable/install.html#installing-cupy) installs the module real-quick from precompiled binaries. Please make sure to run the command `python -m cupyx.tools.install_library --cuda <VERSION> --library cutensor` after installing cupy to install the additional cuda libraries required by cupy.
 
 ### TODO
 - The `qrnn` module present in this code is same as the one used in the self-supervised training. Try to import the qrnn from the main directory instead of copying the same to the current directory and using it.
