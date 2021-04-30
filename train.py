@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Recipe for training a speaker-id system. The template can use used as a
-basic example for any signal classification task such as language_id,
-emotion recognition, command classification, etc. The proposed task classifies
-28 speakers using Mini Librispeech. This task is very easy. In a real
-scenario, you need to use datasets with a larger number of speakers such as
-the voxceleb one (see recipes/VoxCeleb). Speechbrain has already some built-in
-models for signal classifications (see the ECAPA one in
-speechbrain.lobes.models.ECAPA_TDNN.py or the xvector in
-speechbrain/lobes/models/Xvector.py)
+"""Recipe for training a self-supervised learning model (PASE).
 
 To run this recipe, do the following:
 > python train.py train.yaml
@@ -46,13 +38,30 @@ class PASEBrain(sb.Brain):
 
     def __init__(
         self,
-        encoder_cfg,
-        workers_cfg,
+        encoder_cfg: dict,
+        workers_cfg: dict,
         modules=None,
         hparams=None,
         run_opts=None,
         checkpointer=None,
     ):
+        """PASE self-supervised training Brain class
+
+        Parameters
+        ----------
+        encoder_cfg : dict
+            The configuration of encoder model
+        workers_cfg : dict
+            The configuration of workers
+        modules : None, optional
+            The dict containing models
+        hparams : None, optional
+            The hparams provided in yaml
+        run_opts : None, optional
+            Running options for training
+        checkpointer : None, optional
+            Checkpointer to checkpoint models at various stages of training
+        """
         modules = modules or {}
         modules.update(self._add_modules(encoder_cfg, workers_cfg, checkpointer))
 
@@ -65,8 +74,11 @@ class PASEBrain(sb.Brain):
         )
 
     def _add_modules(self, encoder_cfg, workers_cfg, checkpointer):
+        """Add the models (encoder + workers) to `modules` and `checkpointer` variables of Brain class"""
+
         encoder_worker_modules = {}
 
+        # Add worker models
         for w_type, w_list in workers_cfg.items():
             for w_name, w_cfg in w_list.items():
                 if 'model' not in w_cfg:
@@ -81,6 +93,7 @@ class PASEBrain(sb.Brain):
         if not encoder_worker_modules:
             raise ValueError('Expected atleast one worker')
 
+        # Add encoder model
         if 'model' not in encoder_cfg:
             raise ValueError('Expected a model definition for the encoder')
         encoder_worker_modules['encoder'] = encoder_cfg['model']
@@ -89,6 +102,8 @@ class PASEBrain(sb.Brain):
         return encoder_worker_modules
 
     def init_optimizers(self):
+        """Initialize optimizers of encoder  and workers"""
+
         self.encoder_optim = self.hparams.encoder_config['optimizer'](self.modules['encoder'].parameters())
 
         for w_type, w_list in self.hparams.workers_config.items():
@@ -111,18 +126,7 @@ class PASEBrain(sb.Brain):
         self.init_workers_losses()
 
     def fit_batch(self, batch):
-        # Managing automatic mixed precision
-        # if self.auto_mix_prec:
-        #     with torch.cuda.amp.autocast():
-        #         outputs = self.compute_forward(batch, Stage.TRAIN)
-        #         loss = self.compute_objectives(outputs, batch, Stage.TRAIN)
-        #         self.scaler.scale(loss).backward()
-        #         if self.check_gradients(loss):
-        #             self.scaler.step(self.optimizer)
-        #         self.optimizer.zero_grad()
-        #         self.scaler.update()
-
-        outputs = self.compute_forward(batch, Stage.TRAIN)  # outputs = (h, chunk, preds, labels)
+        outputs = self.compute_forward(batch, Stage.TRAIN)
         losses = self.compute_objectives(outputs, batch, Stage.TRAIN)
 
         losses['avg'].backward()
@@ -132,15 +136,6 @@ class PASEBrain(sb.Brain):
                 w_cfg['optim'].step()
             self.encoder_optim.step()
 
-        # Temporary file to store losses of every iteration for plots
-        losses_filepath = os.path.join(self.hparams.save_folder, 'losses.csv')
-        if not os.path.isfile(losses_filepath):
-            with open(losses_filepath, 'w') as f:
-                f.write(','.join(list(self.workers_cfg.keys()) + ['average']) + '\n')
-        with open(losses_filepath, 'a+') as f:
-            f.write(','.join([str(y.item()) for _, y in losses.items()]) + '\n')
-
-        # return losses.detach().cpu()
         return losses['avg']
 
     def evaluate_batch(self, batch, stage):
@@ -166,6 +161,7 @@ class PASEBrain(sb.Brain):
         wavs_pos, lens_pos = batch.sig_pos
         wavs_neg, lens_neg = batch.sig_neg
 
+        # Add env corruption if mentioned in yaml.
         if stage == sb.Stage.TRAIN:
             if hasattr(self.modules, "env_corrupt"):
                 wavs = self.modules.env_corrupt(wavs, lens)
@@ -178,6 +174,7 @@ class PASEBrain(sb.Brain):
         )
 
     def _get_worker_labels(self, predictions, batch):
+        """Get the labellers for all workers mentioned in yaml"""
         max_frame = self.hparams.chunk_size // 160
 
         labels = {}
@@ -214,10 +211,11 @@ class PASEBrain(sb.Brain):
             total_loss += loss
 
         losses["avg"] = total_loss / len(self.workers_cfg)
-        #print([(x, y.item()) for x, y in losses.items()])
         return losses
 
     def _update_optimizer_lr(self, epoch):
+        """Update the lr of all optimizers (encoder + workers)"""
+
         old_lr, new_lr = self.hparams.lr_annealing['encoder'](epoch)
         sb.nnet.schedulers.update_learning_rate(self.encoder_optim, new_lr)
 

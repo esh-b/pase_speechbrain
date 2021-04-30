@@ -1,13 +1,12 @@
 """
-This file contains a very simple TDNN module to use for speaker-id.
+This file contains a very simple PASE encoder module to use for speaker-id.
 
 To replace this model, change the `!new:` tag in the hyperparameter file
 to refer to a built-in SpeechBrain model or another file containing
 a custom PyTorch module.
 
 Authors
- * Nauman Dawalatabad 2020
- * Mirco Ravanelli 2020
+ * Eshwanth Baskaran 2021
 """
 
 

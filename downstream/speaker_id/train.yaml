@@ -1,9 +1,9 @@
 # #################################
-# Basic training parameters for speaker-id. We have first a network that
-# computes some embeddings. On the top of that, we employ a classifier.
+# Basic training parameters for speaker-id. We have a PASE encoder network that
+# computes embeddings. On the top of that, we employ a classifier.
 #
 # Author:
-#  * Mirco Ravanelli 2021
+#  * Eshwanth Baskaran 2021
 # #################################
 
 # Seed needs to be set at top of yaml, before objects with parameters are made
