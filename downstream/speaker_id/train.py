@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Recipe for training a speaker-id system. The template can use used as a
-basic example for any signal classification task such as language_id,
-emotion recognition, command classification, etc. The proposed task classifies
-28 speakers using Mini Librispeech. This task is very easy. In a real
-scenario, you need to use datasets with a larger number of speakers such as
-the voxceleb one (see recipes/VoxCeleb). Speechbrain has already some built-in
-models for signal classifications (see the ECAPA one in
-speechbrain.lobes.models.ECAPA_TDNN.py or the xvector in
-speechbrain/lobes/models/Xvector.py)
+"""Recipe for training a speaker-id system using PASE trained encoder model.
 
 To run this recipe, do the following:
 > python train.py train.yaml
@@ -22,17 +14,19 @@ and prepare the Mini Librispeech dataset for computation. Noise and
 reverberation are automatically added to each sample from OpenRIR.
 
 Authors
- * Mirco Ravanelli 2021
+ * Eshwanth Baskaran 2021
 """
 import os
 import sys
+
 import torch
 import speechbrain as sb
 from hyperpyyaml import load_hyperpyyaml
+
 from mini_librispeech_prepare import prepare_mini_librispeech
 
 
-# Brain class for speech enhancement training
+# Brain class for speech classification
 class SpkIdBrain(sb.Brain):
     def compute_forward(self, batch, stage):
         """Runs all the computation of that transforms the input into the
@@ -73,22 +67,15 @@ class SpkIdBrain(sb.Brain):
         """
         wavs, lens = wavs
 
-        # Add augmentation if specified. In this version of augmentation, we
+        # Add environment corruption if specified. In this version of augmentation, we
         # concatenate the original and the augment batches in a single bigger
         # batch. This is more memory-demanding, but helps to improve the
-        # performance. Change it if you run OOM.
+        # performance.
         if stage == sb.Stage.TRAIN:
             if hasattr(self.modules, "env_corrupt"):
                 wavs_noise = self.modules.env_corrupt(wavs, lens)
                 wavs = torch.cat([wavs, wavs_noise], dim=0)
                 lens = torch.cat([lens, lens])
-
-            # if hasattr(self.hparams, "augmentation"):
-            #     wavs = self.hparams.augmentation(wavs, lens)
-
-        # Feature extraction and normalization
-        # feats = self.modules.compute_features(wavs)
-        # feats = self.modules.mean_var_norm(feats, lens)
 
         return wavs, lens
 
@@ -234,6 +221,8 @@ def dataio_prep(hparams):
         """Load the signal, and pass it and its length to the corruption class.
         This is done on the CPU in the `collate_fn`."""
         sig = sb.dataio.dataio.read_audio(wav)
+        # Taking a fixed sample from the input everytime. The cons
+        # could be that the learning may not be robust but it helps in quicker learning time
         sig = sig[100:16000]
         return sig
 

@@ -418,7 +418,6 @@ if __name__ == "__main__":
         opt_class=hparams["opt_class"],
         hparams=hparams,
         run_opts=run_opts,
-        #checkpointer=hparams["checkpointer"],
     )
 
     # The `fit()` method iterates the training loop, calling the methods

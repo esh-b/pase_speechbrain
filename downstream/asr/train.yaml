@@ -20,7 +20,7 @@ __set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
 # It allows you to read the data much faster without slowing down the shared filesystem.
 
 
-data_folder: ../data # In this case, data will be automatically downloaded here.
+data_folder: ./data # In this case, data will be automatically downloaded here.
 data_folder_rirs: !ref <data_folder> # noise/ris dataset will automatically be downloaded here
 output_folder: !ref results/CRDNN_BPE_960h_LM/<seed>
 wer_file: !ref <output_folder>/wer.txt
