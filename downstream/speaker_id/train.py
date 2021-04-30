@@ -223,7 +223,7 @@ def dataio_prep(hparams):
         sig = sb.dataio.dataio.read_audio(wav)
         # A fixed sample is taken from every input. This has cons in
         # that the model might not be robust but helps in quick training time
-        sig = sig[100:16000]
+        sig = sig[100:16100]
         return sig
 
     # Define label pipeline:
