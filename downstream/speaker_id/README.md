@@ -10,6 +10,3 @@
 ### Steps to run the downstream task
 1. Update the `pretrained_path` in the `train.yaml` file to the directory containing the encoder's ckpt file. Also, update the filename in `paths` key of the `pretrainer` parameter accordingly.
 1. Once done, the downstream task can be trained using `python train.py train.yaml`. This will download the minilibrispeech dataset if not available in the current directory and then run the training.
-
-### TODO
-- The `qrnn` module present in this code is same as the one used in the self-supervised training. Try to import the qrnn from the main directory instead of copying the same to the current directory and using it.
