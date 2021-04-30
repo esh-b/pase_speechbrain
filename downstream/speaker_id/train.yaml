@@ -84,6 +84,8 @@ mean_var_norm: !new:speechbrain.processing.features.InputNormalization
 # pointing to a different file you've defined.
 embedding_model: !new:custom_model.PASEEncoder
     use_sincnet: True
+    use_qrnn: True
+    use_skip_conns: True
     in_channels: 1
     blocks_channels: [64, 64, 128, 128, 256, 256, 512, 512, !ref <emb_dim>]
     blocks_kernel_sizes: [251, 21, 11, 11, 11, 11, 11, 11, 1]
