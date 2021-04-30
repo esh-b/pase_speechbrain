@@ -1,6 +1,5 @@
 ## Downstream task - Speaker identification
-
-- This downstream task uses pretrained PASE encoder model, adds classification layer on top of it and fine-tunes the encoder model parameters to suit this task.
+This downstream task uses pretrained PASE encoder model, adds classification layer on top of it and fine-tunes the encoder model parameters to suit this task.
 
 ### Downstream task configuration
 - The downstream task is trained on minilibrispeech data.

@@ -4,7 +4,7 @@ This recipe trains a self-supervised learning system consisting of an encoder an
 ### Directory setup
 - `downstream`: This directory provides code to use the trained encoder and evaluate the performance of trained encoder on downstream tasks. Currently, there is only one downstream task: speaker classification.
 - `models`: This directory contains model definitions for encoder and workers.
-- `qrnn`: The QRNN module used by the encoder (optional).
+- `qrnn`: The QRNN module used by the encoder (used depending on the config in yaml).
 
 ### Self-supervised system setup
 - We train the self-supervised system on minilibrispeech dataset.
@@ -35,6 +35,9 @@ This recipe trains a self-supervised learning system consisting of an encoder an
 ### TODO
 - The `qrnn` module present in this code is same as the one used in the self-supervised training. Try to import the qrnn from the main directory instead of copying the same to the current directory and using it.
 - Many workers use the same architecture (except the hparams change) and the code is copied multiple times on every worker. Alternatively, we could define a base class and inherit it in those worker classes.
+
+### Note
+- The `cupy` module is used by `QRNN` module and it takes time to install the package.
 
 ### References
 - https://github.com/santi-pdp/pase
